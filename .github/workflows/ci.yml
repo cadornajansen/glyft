@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -34,16 +34,18 @@ jobs:
       - name: Typecheck
         id: typecheck
         continue-on-error: true
-        run: npm run lint 2>&1 | tee typecheck.log
+        run: |
+          mkdir -p .ci
+          npm run lint 2>&1 | tee .ci/typecheck.log
 
-      - name: Upload typecheck diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: typecheck-log
-          path: typecheck.log
-          if-no-files-found: error
-          retention-days: 1
+      - name: Persist typecheck diagnostics
+        if: steps.typecheck.outcome == 'failure' && github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .ci/typecheck.log
+          git diff --cached --quiet || git commit -m "ci: record typecheck errors"
+          git push
 
       - name: Fail on typecheck errors
         if: steps.typecheck.outcome == 'failure'
