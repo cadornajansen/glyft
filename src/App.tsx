@@ -9,6 +9,7 @@ import { CanvasController } from "./canvas/CanvasController";
 import { useEditorStore, type ActiveProperties } from "./stores/editorStore";
 import { getAllProjects, saveProject, deleteProject, db } from "./db/projectDb";
 import { saveProjectCanvasState } from "./db/saveProjectCanvasState";
+import { updateProjectDimensions } from "./db/updateProjectMetadata";
 import { type Project } from "./types";
 import {
   createDefaultOgTemplateProject,
@@ -505,18 +506,36 @@ export default function App() {
 
   const handleAddSVG = (svg: string) =>
     canvasControllerRef.current?.addSVG(svg);
-
   const handleSetProperty = (key: keyof ActiveProperties, value: any) => {
     canvasControllerRef.current?.setProperty(key, value);
   };
 
-  const handleSetArtboardProperty = (
+  const handleSetArtboardProperty = async (
     key: "width" | "height" | "fill",
     value: any,
   ) => {
-    canvasControllerRef.current?.setArtboardProperty(key, value);
-  };
+    if (!canvasControllerRef.current) return;
 
+    if (key === "width" || key === "height") {
+      const store = useEditorStore.getState();
+      const currentProj = store.currentProject;
+      if (currentProj) {
+        const newWidth = key === "width" ? (parseInt(value) || 100) : currentProj.width;
+        const newHeight = key === "height" ? (parseInt(value) || 100) : currentProj.height;
+
+        const updated = await updateProjectDimensions(
+          currentProj.id,
+          newWidth,
+          newHeight,
+        );
+        if (updated && store.currentProjectId === currentProj.id) {
+          store.setCurrentProject(updated);
+        }
+      }
+    }
+
+    canvasControllerRef.current.setArtboardProperty(key, value);
+  };
   const handleExport = async (format: "png" | "jpeg" | "svg" | "webp") => {
     if (!canvasControllerRef.current) return;
     const url = await canvasControllerRef.current.exportToImage(format);
