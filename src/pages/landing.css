@@ -1,28 +1,43 @@
-﻿/* Technical Grid Background */
+﻿/* General Landing Page Styling */
 .landing-grid {
   background-image: 
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: 48px 48px;
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 64px 64px;
   background-position: center center;
+}
+
+/* Masked grid for hero section */
+.landing-grid-hero {
+  mask-image: radial-gradient(circle at center, black 40%, transparent 85%);
+  -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 85%);
 }
 
 /* Subtle Film Grain */
 .landing-grain {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-  opacity: 0.02;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.015;
   pointer-events: none;
+}
+
+/* Custom layout typography clamp rules */
+.clamp-title {
+  font-size: clamp(2rem, 5vw + 1rem, 3.75rem);
+}
+
+.clamp-desc {
+  font-size: clamp(0.9rem, 1.5vw + 0.5rem, 1.15rem);
 }
 
 /* Slow Ambient Glow Movement */
 @keyframes ambientGlow {
   0%, 100% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.8;
+    transform: translate(-50%, -50%) translate(0, 0) scale(1);
+    opacity: 0.7;
   }
   50% {
-    transform: translate(3%, 1.5%) scale(1.05);
-    opacity: 0.95;
+    transform: translate(-50%, -50%) translate(3%, 1.5%) scale(1.05);
+    opacity: 0.9;
   }
 }
 
@@ -50,18 +65,27 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.06),
     transparent
   );
   transform: skewX(-25deg);
   animation: shineSweep 1.5s ease-out;
 }
 
-/* Custom layout helper to clamp typography responsive sizes */
-.clamp-title {
-  font-size: clamp(1.875rem, 4vw + 1rem, 3.25rem);
+/* Section separators with fading border lines */
+.border-fade-h {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05) 20%, rgba(255, 255, 255, 0.05) 80%, transparent);
+  height: 1px;
+  width: 100%;
 }
 
-.clamp-desc {
-  font-size: clamp(0.875rem, 1.5vw + 0.5rem, 1.125rem);
+.border-fade-v {
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.05) 20%, rgba(255, 255, 255, 0.05) 80%, transparent);
+  width: 1px;
+  height: 100%;
+}
+
+/* Linear-style feature card ambient glow */
+.card-ambient-glow {
+  background: radial-gradient(800px circle at var(--x, 0px) var(--y, 0px), rgba(99, 102, 241, 0.04), transparent 40%);
 }
