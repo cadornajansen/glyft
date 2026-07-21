@@ -1,6 +1,7 @@
 import {
   Circle,
   FabricObject,
+  Group,
   Image as FabricImage,
   IText,
   Line,
@@ -72,6 +73,21 @@ export class CanvasObjectFactory {
         break;
       }
 
+      case "group": {
+        const childData = Array.isArray(objectData.objects)
+          ? objectData.objects
+          : [];
+        const children = (
+          await Promise.all(childData.map((child) => this.create(child)))
+        ).filter((child): child is FabricObject => child !== null);
+
+        object = new Group(children, {
+          ...options,
+          subTargetCheck: true,
+        });
+        break;
+      }
+
       default:
         return null;
     }
@@ -90,6 +106,7 @@ export class CanvasObjectFactory {
     delete (options as any).type;
     delete (options as any).id;
     delete (options as any).name;
+    delete (options as any).objects;
 
     return options;
   }
@@ -101,10 +118,13 @@ export class CanvasObjectFactory {
     (object as any).id = objectData.id || crypto.randomUUID();
     (object as any).name =
       objectData.name || `${objectData.type?.toUpperCase() || "OBJECT"} Item`;
+    (object as any).locked = Boolean(objectData.locked);
 
     object.set({
       originX: "left",
       originY: "top",
+      selectable: !Boolean(objectData.locked),
+      evented: !Boolean(objectData.locked),
     });
     object.setCoords();
   }
