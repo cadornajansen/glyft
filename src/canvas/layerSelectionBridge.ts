@@ -1,9 +1,18 @@
-import { ActiveSelection, type FabricObject } from "fabric";
+import {
+  ActiveSelection,
+  Group,
+  type FabricObject,
+} from "fabric";
 import { CanvasController } from "./CanvasController";
 import { useEditorStore } from "../stores/editorStore";
 
 const MULTI_SELECTION_PREFIX = "__glyft_layer_selection__:";
 const INSTALLED_FLAG = "__glyftLayerSelectionBridgeInstalled";
+
+type LayerObject = FabricObject & {
+  id?: string;
+  isArtboard?: boolean;
+};
 
 type PatchedController = CanvasController & {
   updateZundandUI: () => void;
@@ -21,8 +30,44 @@ export function encodeLayerSelection(ids: string[]) {
 
 function readSelectionIds(controller: CanvasController) {
   return (controller.canvas?.getActiveObjects() ?? [])
-    .map((object) => (object as FabricObject & { id?: string }).id)
+    .map((object) => (object as LayerObject).id)
     .filter((id): id is string => Boolean(id));
+}
+
+function findNestedObject(object: FabricObject, id: string): FabricObject | undefined {
+  if ((object as LayerObject).id === id) return object;
+
+  if (object instanceof Group) {
+    for (const child of object.getObjects()) {
+      const found = findNestedObject(child, id);
+      if (found) return found;
+    }
+  }
+
+  return undefined;
+}
+
+function findObjectsByIds(controller: CanvasController, ids: string[]) {
+  if (!controller.canvas) return [];
+
+  const remainingIds = new Set(ids);
+  const foundObjects: FabricObject[] = [];
+
+  for (const object of controller.canvas.getObjects()) {
+    if ((object as LayerObject).isArtboard) continue;
+
+    for (const id of Array.from(remainingIds)) {
+      const found = findNestedObject(object, id);
+      if (!found) continue;
+
+      foundObjects.push(found);
+      remainingIds.delete(id);
+    }
+
+    if (remainingIds.size === 0) break;
+  }
+
+  return foundObjects;
 }
 
 export function installLayerSelectionBridge() {
@@ -58,18 +103,7 @@ export function installLayerSelectionBridge() {
       return;
     }
 
-    const idSet = new Set(ids);
-    const objects = this.canvas
-      .getObjects()
-      .filter(
-        (object) =>
-          !(object as FabricObject & { isArtboard?: boolean }).isArtboard,
-      )
-      .filter((object) => {
-        const id = (object as FabricObject & { id?: string }).id;
-        return Boolean(id && idSet.has(id));
-      });
-
+    const objects = findObjectsByIds(this, ids);
     this.canvas.discardActiveObject();
 
     if (objects.length === 1) {
