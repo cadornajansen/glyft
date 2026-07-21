@@ -17,6 +17,7 @@ Use this file as the first source of context before modifying this repository. K
 4. Prefer small, focused commits with descriptive messages.
 5. Run or verify:
    - `npm run lint`
+   - `npm run test`
    - `npm run build`
 6. Check GitHub Actions before claiming completion.
 7. Do not close an issue until its acceptance criteria are implemented and verified.
@@ -80,7 +81,7 @@ Use this file as the first source of context before modifying this repository. K
 - Portable `.glyft` template import/export with bundled image assets
 - Ready-made template catalog integration
 - Compact sidebar project rows with side thumbnails and placeholder graphics
-- GitHub Actions CI for lint/typecheck and production build
+- GitHub Actions CI for dependency install, typecheck, unit tests, and production build
 - Vitest unit test suite verifying database preservation (rename, dimensions, future metadata, missing projects, concurrency)
 
 ## Template workflow
@@ -96,7 +97,7 @@ Use this file as the first source of context before modifying this repository. K
 
 - Fonts are referenced by family name; font binaries are not bundled.
 - Ready-made templates remain empty until approved packages are added.
-- Browser/runtime behavior should still be manually tested after CI because CI currently validates typecheck and build, not full interaction behavior.
+- Browser/runtime behavior should still be manually tested after CI because the current suite does not cover full editor interaction behavior.
 
 ## Latest context checkpoint
 
@@ -108,4 +109,5 @@ Use this file as the first source of context before modifying this repository. K
 - Latest implementation commits before this context update: `84e96555750298b57577b60d13c2da6b51fd8871` and `3a052523a116aa469d49eb726f80379559cd841e`.
 - Vitest test framework added as a devDependency with global `fake-indexeddb` isolation for persistence testing (`npm run test`).
 - Autosave metadata integrity issue (Issue #5) fixed by extracting transaction-safe persistence helper `src/db/saveProjectCanvasState.ts` and updating `src/App.tsx` with double state checks.
+- GitHub Actions now runs `npm run test` between typecheck and production build.
 - Remaining testing gaps (Issue #11): broader coverage for serializer, history, export, and browser-based end-to-end regression tests.
