@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import logo from "../../assets/logo.png";
-import editorPreview from "../../assets/landing/editor-preview.png";
+import editorPreview from "../../assets/preview-editor.png";
 import { 
   ArrowRight, 
   Github, 
