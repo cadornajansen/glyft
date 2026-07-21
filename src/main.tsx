@@ -5,9 +5,11 @@ import "./index.css";
 import "./propertiesPanelPolish.css";
 import { installColorInputCoalescing } from "./installColorInputCoalescing";
 import { installCompactSelectionUI } from "./canvas/installCompactSelectionUI";
+import { installElementContextMenu } from "./canvas/installElementContextMenu";
 
 installColorInputCoalescing();
 installCompactSelectionUI();
+installElementContextMenu();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
