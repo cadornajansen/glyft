@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import logo from "../../assets/logo.png";
 import editorPreview from "../../assets/landing/editor-preview.png";
 import { 
@@ -19,8 +19,131 @@ import {
 } from "lucide-react";
 import "./landing.css";
 
+type SiteLink = {
+  label: string;
+  href?: string;
+  enabled: boolean;
+  external?: boolean;
+  status?: "soon" | "planned";
+};
+
+const navigationItems: SiteLink[] = [
+  { label: "Docs", href: "/docs", enabled: false, status: "soon" },
+  { label: "Features", href: "/features", enabled: false, status: "soon" },
+  { label: "Templates", href: "/templates", enabled: false, status: "soon" },
+  {
+    label: "GitHub",
+    href: "https://github.com/cadornajansen/glyft",
+    enabled: true,
+    external: true,
+  },
+];
+
+const projectLinks: SiteLink[] = [
+  {
+    label: "GitHub",
+    href: "https://github.com/cadornajansen/glyft",
+    enabled: true,
+    external: true,
+  },
+  {
+    label: "GitHub Issues",
+    href: "https://github.com/cadornajansen/glyft/issues",
+    enabled: true,
+    external: true,
+  },
+  {
+    label: "Contributing",
+    href: "https://github.com/cadornajansen/glyft/blob/main/CONTRIBUTING.md",
+    enabled: false,
+    status: "planned",
+  },
+  {
+    label: "Releases",
+    href: "https://github.com/cadornajansen/glyft/releases",
+    enabled: true,
+    external: true,
+  },
+  {
+    label: "License",
+    href: "https://github.com/cadornajansen/glyft/blob/main/LICENSE",
+    enabled: false,
+    status: "planned",
+  },
+];
+
+const resourceLinks: SiteLink[] = [
+  { label: "Documentation", href: "/docs", enabled: false },
+  {
+    label: "Changelog",
+    href: "https://github.com/cadornajansen/glyft/releases",
+    enabled: true,
+    external: true,
+  },
+  { label: "Case Study", href: "/case-study", enabled: false },
+  { label: "Roadmap", href: "/roadmap", enabled: false },
+  { label: "Security", href: "/security", enabled: false },
+];
+
 export default function LandingPage() {
   const [activeFeature, setActiveFeature] = useState<number>(0);
+
+  const renderNavLink = (link: SiteLink) => {
+    if (link.enabled && link.href) {
+      return (
+        <a
+          key={link.label}
+          href={link.href}
+          target={link.external ? "_blank" : undefined}
+          rel={link.external ? "noopener noreferrer" : undefined}
+          className="hover:text-zinc-100 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 rounded px-1.5 py-0.5"
+        >
+          {link.label}
+        </a>
+      );
+    }
+
+    return (
+      <div key={link.label} className="relative group flex items-center">
+        <span
+          aria-disabled="true"
+          role="link"
+          className="text-zinc-650 cursor-not-allowed select-none text-sm font-normal"
+        >
+          {link.label}
+        </span>
+        {link.status && (
+          <span className="absolute left-1/2 -translate-x-1/2 -top-7 scale-0 group-hover:scale-100 transition-all duration-150 ease-out bg-zinc-900 border border-white/5 text-zinc-400 text-[9px] font-mono tracking-wider px-2 py-0.5 rounded shadow-lg whitespace-nowrap pointer-events-none select-none">
+            Soon
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  const renderFooterLink = (link: SiteLink) => {
+    if (link.enabled && link.href) {
+      return (
+        <a
+          href={link.href}
+          target={link.external ? "_blank" : undefined}
+          rel={link.external ? "noreferrer noopener" : undefined}
+          className="text-zinc-450 hover:text-zinc-200 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 rounded px-0.5"
+        >
+          {link.label}
+        </a>
+      );
+    }
+
+    return (
+      <span
+        aria-disabled="true"
+        className="text-zinc-650 cursor-not-allowed select-none block"
+      >
+        {link.label}
+      </span>
+    );
+  };
 
   const features = [
     {
@@ -71,18 +194,7 @@ export default function LandingPage() {
         </div>
 
         <nav className="hidden md:flex items-center gap-8 text-sm font-normal text-zinc-400">
-          <a href="#features" className="hover:text-zinc-100 transition-colors">Features</a>
-          <a href="#usecases" className="hover:text-zinc-100 transition-colors">Use cases</a>
-          <a href="#workflow" className="hover:text-zinc-100 transition-colors">Workflow</a>
-          <a 
-            href="https://github.com/cadornajansen/glyft" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 hover:text-zinc-100 transition-colors"
-          >
-            <Github className="h-4 w-4" />
-            GitHub
-          </a>
+          {navigationItems.map(renderNavLink)}
         </nav>
 
         <div className="flex items-center gap-4">
@@ -100,10 +212,9 @@ export default function LandingPage() {
         {/* Soft centered ambient glow behind the text */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none -z-10" />
 
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/5 border border-indigo-500/10 mb-6 shrink-0">
-          <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+        <div className="inline-flex items-center gap-2 px-3 rounded-full  mb-3 shrink-0">
           <span className="text-[10px] uppercase font-mono tracking-widest text-indigo-400 font-semibold">
-            DESIGN TOOLING FOR DEVELOPERS
+            DESIGN YOUR FIRST .GLYFT FILE
           </span>
         </div>
 
@@ -401,64 +512,54 @@ export default function LandingPage() {
 
       <div className="border-fade-h" />
 
-      {/* Section 6: Floe Philosophy Sitemap-style Footer */}
+      {/* Section 6: Sitemap-style Footer */}
       <footer className="bg-black/20 backdrop-blur-md pt-16 pb-12 border-t border-white/5">
         <div className="max-w-5xl mx-auto px-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-12">
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-12 pb-12 text-left">
             
-            {/* Column 1: Brand & Info */}
-            <div className="space-y-4">
+            {/* Column 1: Brand Block */}
+            <div className="space-y-3 max-w-sm">
               <div className="flex items-center gap-2">
                 <img src={logo} alt="Glyft Logo" className="h-5 w-5 object-contain opacity-90" />
                 <span className="font-semibold text-white tracking-tight text-sm">Glyft</span>
               </div>
-              <p className="text-zinc-500 text-xs leading-relaxed max-w-xs">
-                Open-source, local-first graphics editor built for non-designer developers. Banners and web visuals in your browser.
+              <p className="text-zinc-550 text-xs leading-relaxed">
+                Open-source, local-first graphics editor built for non-designer developers.
               </p>
-              <div className="flex gap-4 pt-2">
-                <a 
-                  href="https://github.com/cadornajansen/glyft"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-1.5 rounded bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white hover:border-white/10 transition-colors"
-                  title="View GitHub Repository"
-                >
-                  <Github className="h-4 w-4" />
-                </a>
+              <div className="text-[10px] font-mono text-zinc-650 tracking-wider">
+                v0.1.0 prerelease
               </div>
             </div>
 
-            {/* Column 2: Product Capabilities */}
-            <div>
-              <h3 className="text-white text-xs font-semibold tracking-wider uppercase mb-4">Product</h3>
-              <ul className="space-y-2.5 text-xs">
-                <li><a href="/editor" className="text-zinc-500 hover:text-zinc-300 transition-colors">Open Editor</a></li>
-                <li><span className="text-zinc-600 cursor-default">Ready-made Templates</span></li>
-                <li><span className="text-zinc-600 cursor-default">High-resolution Export</span></li>
-                <li><span className="text-zinc-600 cursor-default">IndexedDB Persistence</span></li>
-              </ul>
-            </div>
+            {/* Column 2 & 3: Link groups pushed to the right side */}
+            <div className="flex flex-col sm:flex-row gap-16 md:gap-24">
+              {/* Project Group */}
+              <div className="space-y-3.5 min-w-[120px]">
+                <h3 className="text-white text-xs font-semibold tracking-wider uppercase">
+                  Project
+                </h3>
+                <div className="flex flex-col gap-2.5 text-xs">
+                  {projectLinks.map((link) => (
+                    <div key={link.label} className="flex items-center">
+                      {renderFooterLink(link)}
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-            {/* Column 3: Resources & System */}
-            <div>
-              <h3 className="text-white text-xs font-semibold tracking-wider uppercase mb-4">Resources</h3>
-              <ul className="space-y-2.5 text-xs">
-                <li><span className="text-zinc-600 cursor-default">Documentation</span></li>
-                <li><span className="text-zinc-600 cursor-default">Changelog</span></li>
-                <li><span className="text-zinc-600 cursor-default">FAQ & Security</span></li>
-                <li><span className="text-zinc-600 cursor-default">Project Roadmap</span></li>
-              </ul>
-            </div>
-
-            {/* Column 4: Open Source Project */}
-            <div>
-              <h3 className="text-white text-xs font-semibold tracking-wider uppercase mb-4">Project</h3>
-              <ul className="space-y-2.5 text-xs">
-                <li><a href="https://github.com/cadornajansen/glyft" target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-zinc-300 transition-colors">GitHub Repository</a></li>
-                <li><a href="https://github.com/cadornajansen/glyft/issues" target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-zinc-300 transition-colors">Issue Tracker</a></li>
-                <li><a href="https://github.com/cadornajansen/glyft/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-zinc-300 transition-colors">MIT License</a></li>
-                <li><a href="https://github.com/cadornajansen/glyft/releases" target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-zinc-300 transition-colors">Releases</a></li>
-              </ul>
+              {/* Resources Group */}
+              <div className="space-y-3.5 min-w-[120px]">
+                <h3 className="text-white text-xs font-semibold tracking-wider uppercase">
+                  Resources
+                </h3>
+                <div className="flex flex-col gap-2.5 text-xs">
+                  {resourceLinks.map((link) => (
+                    <div key={link.label} className="flex items-center">
+                      {renderFooterLink(link)}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
           </div>
