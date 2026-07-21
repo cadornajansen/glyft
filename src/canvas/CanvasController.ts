@@ -534,6 +534,7 @@ export class CanvasController {
     });
 
     return JSON.stringify({
+      version: 2,
       objects: objectsData,
     });
   }
