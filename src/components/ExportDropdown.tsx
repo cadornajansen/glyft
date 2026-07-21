@@ -6,10 +6,14 @@ import {
   FileArchive,
   FileCode2,
   FileImage,
+  FileUp,
   LoaderCircle,
 } from "lucide-react";
 import { useEditorStore } from "../stores/editorStore";
-import { downloadProjectAsTemplate } from "../templates/portableTemplate";
+import {
+  downloadProjectAsTemplate,
+  importPortableTemplateFile,
+} from "../templates/portableTemplate";
 
 export type ExportFormat = "png" | "jpeg" | "webp" | "svg";
 type ExportOperation = ExportFormat | "template";
@@ -57,8 +61,10 @@ const exportOptions: Array<{
 
 export function ExportDropdown({ onExport }: ExportDropdownProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const currentProjectId = useEditorStore((state) => state.currentProjectId);
   const [isOpen, setIsOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [activeOperation, setActiveOperation] = useState<ExportOperation | null>(
     null,
   );
@@ -90,7 +96,7 @@ export function ExportDropdown({ onExport }: ExportDropdownProps) {
   };
 
   const handleExport = async (format: ExportFormat) => {
-    if (activeOperation) return;
+    if (activeOperation || isImporting) return;
     setActiveOperation(format);
     setCompletedOperation(null);
     try {
@@ -102,7 +108,7 @@ export function ExportDropdown({ onExport }: ExportDropdownProps) {
   };
 
   const handleTemplateExport = async () => {
-    if (activeOperation || !currentProjectId) return;
+    if (activeOperation || isImporting || !currentProjectId) return;
     setActiveOperation("template");
     setCompletedOperation(null);
     try {
@@ -117,14 +123,59 @@ export function ExportDropdown({ onExport }: ExportDropdownProps) {
     }
   };
 
+  const handleTemplateImport = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || isImporting || activeOperation) return;
+
+    setIsImporting(true);
+    setIsOpen(false);
+    try {
+      await importPortableTemplateFile(file);
+      window.location.reload();
+    } catch (error) {
+      window.alert(
+        error instanceof Error ? error.message : "Template import failed.",
+      );
+      setIsImporting(false);
+    }
+  };
+
+  const isBusy = Boolean(activeOperation) || isImporting;
+
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative flex items-center gap-1.5">
+      <button
+        id="btn-import-template-toolbar"
+        type="button"
+        disabled={isBusy}
+        onClick={() => importInputRef.current?.click()}
+        title="Import a portable Glyft template"
+        className="flex h-8 items-center gap-1.5 rounded-md border border-[#333] bg-[#171717] px-2.5 text-[10px] font-semibold text-[#a1a1a1] transition-colors hover:bg-[#232323] hover:text-white disabled:cursor-wait disabled:opacity-55"
+      >
+        {isImporting ? (
+          <LoaderCircle size={12} className="animate-spin" />
+        ) : (
+          <FileUp size={12} />
+        )}
+        <span>{isImporting ? "Importing…" : "Import .glyft"}</span>
+      </button>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".glyft,application/vnd.glyft.template+json,application/json"
+        onChange={(event) => void handleTemplateImport(event)}
+        className="hidden"
+      />
+
       <button
         id="btn-export-dropdown"
         type="button"
         aria-haspopup="menu"
         aria-expanded={isOpen}
-        disabled={Boolean(activeOperation)}
+        disabled={isBusy}
         onClick={() => setIsOpen((open) => !open)}
         className="flex h-8 items-center gap-2 rounded-md bg-white px-3 text-xs font-semibold text-black transition-colors hover:bg-[#e7e7e7] disabled:cursor-wait disabled:opacity-75"
       >
@@ -166,7 +217,7 @@ export function ExportDropdown({ onExport }: ExportDropdownProps) {
                   id={`export-${option.format}`}
                   type="button"
                   role="menuitem"
-                  disabled={Boolean(activeOperation)}
+                  disabled={isBusy}
                   onClick={() => void handleExport(option.format)}
                   className="group flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[#2b2b2b] disabled:cursor-wait disabled:opacity-55"
                 >
@@ -198,7 +249,7 @@ export function ExportDropdown({ onExport }: ExportDropdownProps) {
             id="export-template"
             type="button"
             role="menuitem"
-            disabled={Boolean(activeOperation) || !currentProjectId}
+            disabled={isBusy || !currentProjectId}
             onClick={() => void handleTemplateExport()}
             className="group flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[#2b2b2b] disabled:cursor-not-allowed disabled:opacity-45"
           >
