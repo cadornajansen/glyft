@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { type Project, type ToolType } from '../types';
+import { create } from "zustand";
+import { type Project, type ToolType } from "../types";
 
 export interface ActiveProperties {
   id?: string;
@@ -8,13 +8,12 @@ export interface ActiveProperties {
   stroke?: string;
   strokeWidth?: number;
   opacity?: number;
-  rx?: number; // rounded corners for rectangle
+  rx?: number;
   ry?: number;
   shadowColor?: string;
   shadowBlur?: number;
   shadowOffsetX?: number;
   shadowOffsetY?: number;
-  // Position, Size, and Rotation
   left?: number;
   top?: number;
   width?: number;
@@ -22,7 +21,6 @@ export interface ActiveProperties {
   angle?: number;
   flipX?: boolean;
   flipY?: boolean;
-  // Text specific
   fontFamily?: string;
   fontSize?: number;
   fontWeight?: string | number;
@@ -33,6 +31,14 @@ export interface ActiveProperties {
   underline?: boolean;
 }
 
+export interface EditorLayer {
+  id: string;
+  name: string;
+  type: string;
+  visible: boolean;
+  locked: boolean;
+}
+
 interface EditorUIState {
   currentProjectId: string | null;
   currentProject: Project | null;
@@ -41,14 +47,9 @@ interface EditorUIState {
   showGrid: boolean;
   gridSize: number;
   selectedObjectCount: number;
+  selectedObjectIds: string[];
   activeProperties: ActiveProperties | null;
-  layers: {
-    id: string;
-    name: string;
-    type: string;
-    visible: boolean;
-    locked: boolean;
-  }[];
+  layers: EditorLayer[];
   canUndo: boolean;
   canRedo: boolean;
   isLeftSidebarOpen: boolean;
@@ -56,7 +57,6 @@ interface EditorUIState {
   isRightSidebarOpen: boolean;
   isPanning: boolean;
 
-  // Actions
   setCurrentProjectId: (id: string | null) => void;
   setCurrentProject: (project: Project | null) => void;
   setActiveTool: (tool: ToolType) => void;
@@ -64,16 +64,9 @@ interface EditorUIState {
   setShowGrid: (show: boolean) => void;
   setGridSize: (size: number) => void;
   setSelectedObjectCount: (count: number) => void;
+  setSelectedObjectIds: (ids: string[]) => void;
   setActiveProperties: (props: ActiveProperties | null) => void;
-  setLayers: (
-    layers: {
-      id: string;
-      name: string;
-      type: string;
-      visible: boolean;
-      locked: boolean;
-    }[],
-  ) => void;
+  setLayers: (layers: EditorLayer[]) => void;
   setHistoryState: (canUndo: boolean, canRedo: boolean) => void;
   setLeftSidebarOpen: (open: boolean) => void;
   setActiveTab: (tab: "projects" | "assets" | "export") => void;
@@ -86,10 +79,11 @@ export const useEditorStore = create<EditorUIState>((set) => ({
   currentProjectId: null,
   currentProject: null,
   activeTool: "select",
-  zoom: 1.0,
+  zoom: 1,
   showGrid: false,
   gridSize: 20,
   selectedObjectCount: 0,
+  selectedObjectIds: [],
   activeProperties: null,
   layers: [],
   canUndo: false,
@@ -106,6 +100,7 @@ export const useEditorStore = create<EditorUIState>((set) => ({
   setShowGrid: (show) => set({ showGrid: show }),
   setGridSize: (size) => set({ gridSize: size }),
   setSelectedObjectCount: (count) => set({ selectedObjectCount: count }),
+  setSelectedObjectIds: (ids) => set({ selectedObjectIds: ids }),
   setActiveProperties: (props) => set({ activeProperties: props }),
   setLayers: (layers) => set({ layers }),
   setHistoryState: (canUndo, canRedo) => set({ canUndo, canRedo }),
@@ -116,6 +111,7 @@ export const useEditorStore = create<EditorUIState>((set) => ({
   resetEditorSession: () =>
     set({
       selectedObjectCount: 0,
+      selectedObjectIds: [],
       activeProperties: null,
       layers: [],
       canUndo: false,
