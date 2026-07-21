@@ -39,10 +39,10 @@ Use this file as the first source of context before modifying this repository. K
   - Projects list
   - Starter presets
   - Ready-made templates
-  - `.glyft` template import
 - `src/components/ExportDropdown.tsx`
   - PNG, JPEG, WebP, SVG export
   - Save as `.glyft` template
+  - `.glyft` template import button beside Export
 - `src/canvas/CanvasController.ts`
   - Main canvas/editor orchestration
 - `src/canvas/CanvasObjectFactory.ts`
@@ -77,13 +77,14 @@ Use this file as the first source of context before modifying this repository. K
   - underline
 - Portable `.glyft` template import/export with bundled image assets
 - Ready-made template catalog integration
-- Compact sidebar project rows with side thumbnails
+- Compact sidebar project rows with side thumbnails and placeholder graphics
 - GitHub Actions CI for lint/typecheck and production build
 
 ## Template workflow
 
 - Create a project in Glyft.
 - Use `Export > Save as template` to produce a `.glyft` file.
+- Use the `Import .glyft` button beside Export to load a shared template.
 - Review the package and preview.
 - Add approved templates to `src/templates/catalog.ts`.
 - Keep catalog data reusable by both the editor and a future landing-page templates route.
@@ -96,8 +97,9 @@ Use this file as the first source of context before modifying this repository. K
 
 ## Latest context checkpoint
 
-- Template UI was refactored into React components.
-- `src/templates/installTemplateTransferUI.ts` was removed.
-- Sidebar import and catalog rendering now live in `Sidebar.tsx`.
-- Save-as-template now lives in `ExportDropdown.tsx`.
-- Latest verified commit before this context file: `b42a1d308d034b1fda9af804da776b52fb0e168b`.
+- Template UI is implemented through React components.
+- `src/templates/installTemplateTransferUI.ts` remains removed.
+- Save-as-template remains in `ExportDropdown.tsx`.
+- `.glyft` import is now positioned directly beside the main Export button.
+- Sidebar project cards show a generated placeholder graphic when no thumbnail exists.
+- Latest implementation commits before this context update: `84e96555750298b57577b60d13c2da6b51fd8871` and `3a052523a116aa469d49eb726f80379559cd841e`.
