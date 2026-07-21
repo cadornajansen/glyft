@@ -1,28 +1,29 @@
-import { FabricObject } from "fabric";
+import { Canvas as FabricCanvas, FabricObject } from "fabric";
 import { CanvasController } from "./CanvasController";
 
 const INSTALLED_FLAG = "__glyftCompactSelectionUIInstalled";
+const ADD_PATCH_FLAG = "__glyftCompactSelectionAddPatched";
 
-type PatchedController = CanvasController & {
-  initCanvas: (...args: unknown[]) => Promise<void>;
+const selectionStyle = {
+  borderColor: "#73a7ff",
+  cornerColor: "#ffffff",
+  cornerStrokeColor: "#73a7ff",
+  cornerStyle: "rect" as const,
+  cornerSize: 6,
+  touchCornerSize: 14,
+  transparentCorners: false,
+  borderScaleFactor: 1,
+  padding: 2,
+  borderOpacityWhenMoving: 0.65,
 };
 
-type PatchedPrototype = {
-  [INSTALLED_FLAG]?: boolean;
-  initCanvas: (this: PatchedController, ...args: unknown[]) => Promise<void>;
-};
+function applyObjectStyle(object: FabricObject) {
+  if ((object as FabricObject & { isArtboard?: boolean }).isArtboard) return;
+  object.set(selectionStyle);
+}
 
-function applyCompactSelectionStyle(controller: CanvasController) {
-  FabricObject.prototype.borderColor = "#73a7ff";
-  FabricObject.prototype.cornerColor = "#ffffff";
-  FabricObject.prototype.cornerStrokeColor = "#73a7ff";
-  FabricObject.prototype.cornerStyle = "rect";
-  FabricObject.prototype.cornerSize = 6;
-  FabricObject.prototype.touchCornerSize = 14;
-  FabricObject.prototype.transparentCorners = false;
-  FabricObject.prototype.borderScaleFactor = 1;
-  FabricObject.prototype.padding = 2;
-  FabricObject.prototype.borderOpacityWhenMoving = 0.65;
+function applyPrototypeStyle() {
+  Object.assign(FabricObject.prototype, selectionStyle);
 
   const rotationControl = FabricObject.prototype.controls?.mtr;
   if (rotationControl) {
@@ -30,45 +31,55 @@ function applyCompactSelectionStyle(controller: CanvasController) {
     rotationControl.sizeX = 6;
     rotationControl.sizeY = 6;
   }
+}
 
-  if (!controller.canvas) return;
+function applyCanvasStyle(controller: CanvasController) {
+  const canvas = controller.canvas;
+  if (!canvas) return;
 
-  controller.canvas.set({
+  canvas.set({
     selectionColor: "rgba(115, 167, 255, 0.08)",
     selectionBorderColor: "#73a7ff",
     selectionLineWidth: 1,
   });
 
-  controller.canvas.getObjects().forEach((object) => {
-    if ((object as FabricObject & { isArtboard?: boolean }).isArtboard) return;
-
-    object.set({
-      borderColor: "#73a7ff",
-      cornerColor: "#ffffff",
-      cornerStrokeColor: "#73a7ff",
-      cornerStyle: "rect",
-      cornerSize: 6,
-      touchCornerSize: 14,
-      transparentCorners: false,
-      borderScaleFactor: 1,
-      padding: 2,
-      borderOpacityWhenMoving: 0.65,
-    });
-  });
-
-  controller.canvas.requestRenderAll();
+  canvas.getObjects().forEach(applyObjectStyle);
+  canvas.requestRenderAll();
 }
 
 export function installCompactSelectionUI() {
-  const prototype = CanvasController.prototype as unknown as PatchedPrototype;
+  const prototype = CanvasController.prototype as unknown as {
+    [INSTALLED_FLAG]?: boolean;
+    updateZundandUI: (this: CanvasController) => void;
+  };
 
   if (prototype[INSTALLED_FLAG]) return;
   prototype[INSTALLED_FLAG] = true;
 
-  const originalInitCanvas = prototype.initCanvas;
+  applyPrototypeStyle();
 
-  prototype.initCanvas = async function compactSelectionInit(...args) {
-    await originalInitCanvas.apply(this, args);
-    applyCompactSelectionStyle(this);
+  const canvasPrototype = FabricCanvas.prototype as FabricCanvas & {
+    [ADD_PATCH_FLAG]?: boolean;
+  };
+
+  if (!canvasPrototype[ADD_PATCH_FLAG]) {
+    canvasPrototype[ADD_PATCH_FLAG] = true;
+    const originalAdd = FabricCanvas.prototype.add;
+
+    FabricCanvas.prototype.add = function compactStyledAdd(
+      ...objects: FabricObject[]
+    ) {
+      applyPrototypeStyle();
+      objects.forEach(applyObjectStyle);
+      return originalAdd.apply(this, objects);
+    };
+  }
+
+  const originalUpdateUI = prototype.updateZundandUI;
+
+  prototype.updateZundandUI = function compactSelectionUpdateUI() {
+    applyPrototypeStyle();
+    applyCanvasStyle(this);
+    originalUpdateUI.call(this);
   };
 }
