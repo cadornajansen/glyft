@@ -6,21 +6,15 @@ import {
   IText,
   Shadow,
   Group,
-  Image as FabricImage,
   FabricObject,
   Point,
   Path,
-  type TOptions,
   type TMat2D,
 } from "fabric";
 import { ExportCanvasService } from "./ExportCanvasService";
+import { CanvasServices } from "./CanvasServices";
 import { useEditorStore, type ActiveProperties } from "../stores/editorStore";
-import {
-  CANVAS_DOCUMENT_VERSION,
-  type CanvasDocument,
-  type CanvasObjectData,
-  type Project,
-} from "../types";
+import { type CanvasObjectData, type Project } from "../types";
 
 export class CanvasController {
   public canvas: FabricCanvas | null = null;
@@ -28,25 +22,11 @@ export class CanvasController {
   public readyPromise: Promise<void>;
   private disposed = false;
   private documentTemplateVersion: number | undefined;
-  private undoStack: string[] = [];
-  private redoStack: string[] = [];
-  private isApplyingHistory = false;
+  private services: CanvasServices | null = null;
   private spacePressed = false;
   private isDragging = false;
   private lastPosX = 0;
   private lastPosY = 0;
-  private snapThreshold = 8;
-  private snapReleaseThreshold = 14;
-
-  private activeGuides = {
-    vertical: false,
-    horizontal: false,
-  };
-
-  private snapLocks = {
-    vertical: false,
-    horizontal: false,
-  };
   private clipboard: any = null;
   private isExporting = false;
   private showGrid = false;
@@ -152,10 +132,19 @@ export class CanvasController {
     this.canvas.sendObjectToBack(this.artboard);
     this.enforceDocumentOrigin();
 
+    this.services = new CanvasServices({
+      canvas: this.canvas,
+      artboard: this.artboard,
+      isDisposed: () => this.disposed,
+      restoreHistorySnapshot: (snapshot) =>
+        this.loadCanvasStateFromJSON(snapshot),
+    });
+
     // 3. Load Canvas Data (objects) if any
     if (project.canvasData) {
       try {
         const parsedDocument = this.parseCanvasDocument(project.canvasData);
+        this.documentTemplateVersion = parsedDocument.document.templateVersion;
         this.pendingDocumentMigration = parsedDocument.migrated;
 
         if (parsedDocument.document.background && this.artboard) {
@@ -186,174 +175,33 @@ export class CanvasController {
     }
   }
 
-  private parseCanvasDocument(canvasData: string): {
-    document: CanvasDocument;
-    migrated: boolean;
-  } {
-    const parsed = JSON.parse(canvasData) as Partial<CanvasDocument> & {
-      [key: string]: unknown;
-    };
-
-    const version = typeof parsed.version === "number" ? parsed.version : 0;
-    this.documentTemplateVersion =
-      typeof parsed.templateVersion === "number"
-        ? parsed.templateVersion
-        : undefined;
-    const background =
-      typeof parsed.background === "string" ? parsed.background : undefined;
-    const objects = Array.isArray(parsed.objects)
-      ? parsed.objects.map((object) => ({ ...(object as CanvasObjectData) }))
-      : [];
-
-    if (version >= CANVAS_DOCUMENT_VERSION) {
-      return {
-        document: {
-          version: CANVAS_DOCUMENT_VERSION,
-          templateVersion: this.documentTemplateVersion,
-          background,
-          objects,
-        },
-        migrated: false,
-      };
+  private parseCanvasDocument(canvasData: string) {
+    if (!this.services) {
+      throw new Error("Canvas services are not initialized");
     }
 
-    const legacyOriginX = this.readLegacyOrigin(parsed, [
-      "artboardLeft",
-      "documentOriginX",
-    ]);
-    const legacyOriginY = this.readLegacyOrigin(parsed, [
-      "artboardTop",
-      "documentOriginY",
-    ]);
-
-    return {
-      document: {
-        version: CANVAS_DOCUMENT_VERSION,
-        templateVersion: this.documentTemplateVersion,
-        background,
-        objects: objects.map((object) =>
-          this.migrateLegacyObject(object, legacyOriginX, legacyOriginY),
-        ),
-      },
-      migrated: true,
-    };
-  }
-
-  private readLegacyOrigin(
-    parsed: Partial<CanvasDocument> & { [key: string]: unknown },
-    keys: string[],
-  ) {
-    for (const key of keys) {
-      const value = parsed[key as keyof typeof parsed];
-      if (typeof value === "number" && Number.isFinite(value)) {
-        return value;
-      }
-    }
-
-    return 0;
-  }
-
-  private migrateLegacyObject(
-    object: CanvasObjectData,
-    legacyOriginX: number,
-    legacyOriginY: number,
-  ): CanvasObjectData {
-    const migrated = { ...object };
-
-    if (legacyOriginX !== 0 || legacyOriginY !== 0) {
-      if (typeof migrated.left === "number") migrated.left -= legacyOriginX;
-      if (typeof migrated.top === "number") migrated.top -= legacyOriginY;
-      if (typeof migrated.x1 === "number") migrated.x1 -= legacyOriginX;
-      if (typeof migrated.y1 === "number") migrated.y1 -= legacyOriginY;
-      if (typeof migrated.x2 === "number") migrated.x2 -= legacyOriginX;
-      if (typeof migrated.y2 === "number") migrated.y2 -= legacyOriginY;
-    }
-
-    return migrated;
+    return this.services.documents.parse(canvasData);
   }
 
   private async loadObjects(objectsData: CanvasObjectData[]) {
-    if (!this.canvas || this.disposed) return;
+    if (!this.canvas || !this.services || this.disposed) return;
 
-    // We can load objects sequentially
-    for (const objData of objectsData) {
+    for (const objectData of objectsData) {
       if (!this.canvas || this.disposed) return;
 
       try {
-        let obj: FabricObject | null = null;
-        const options: TOptions<any> = {
-          ...objData,
-
-          // Glyft always treats left/top as the object's top-left document position.
-          originX: "left",
-          originY: "top",
-        };
-
-        delete (options as any).type;
-        const offsetX = 0;
-        const offsetY = 0;
-
-        switch (objData.type?.toLowerCase()) {
-          case "rect":
-            obj = new Rect(options);
-            break;
-          case "circle":
-            obj = new Circle(options);
-            break;
-          case "line": {
-            const lx1 = objData.x1 !== undefined ? objData.x1 - offsetX : 0;
-            const ly1 = objData.y1 !== undefined ? objData.y1 - offsetY : 0;
-            const lx2 = objData.x2 !== undefined ? objData.x2 - offsetX : 0;
-            const ly2 = objData.y2 !== undefined ? objData.y2 - offsetY : 0;
-            obj = new Line([lx1, ly1, lx2, ly2], options);
-            break;
-          }
-          case "path":
-            obj = new Path(objData.path as string | any, options);
-            break;
-          case "itext":
-            obj = new IText((objData.text as string) || "Text", options);
-            break;
-          case "image":
-            // Fabric v6+ image loading from source
-            if (objData.src) {
-              const imgElement = await new Promise<HTMLImageElement>(
-                (resolve, reject) => {
-                  const img = new Image();
-                  img.crossOrigin = "anonymous";
-                  img.onload = () => resolve(img);
-                  img.onerror = () => reject(new Error("Image load fail"));
-                  img.src = objData.src as string;
-                },
-              );
-              if (!this.canvas || this.disposed) return;
-              obj = new FabricImage(imgElement, options);
-            }
-            break;
+        const object = await this.services.objects.create(objectData);
+        if (object && this.canvas && !this.disposed) {
+          this.canvas.add(object);
         }
-
-        if (obj && this.canvas && !this.disposed) {
-          (obj as any).id = objData.id || crypto.randomUUID();
-          (obj as any).name =
-            objData.name || `${objData.type?.toUpperCase()} Item`;
-
-          obj.set({
-            originX: "left",
-            originY: "top",
-          });
-
-          obj.setCoords();
-          this.canvas.add(obj);
-        }
-      } catch (e) {
-        console.error("Failed to load object:", e);
+      } catch (error) {
+        console.error("Failed to load object:", error);
       }
     }
 
-    this.canvas.renderAll();
+    this.canvas.requestRenderAll();
     this.updateLayersList();
   }
-
   private enforceDocumentOrigin() {
     if (!this.artboard) return;
 
@@ -411,64 +259,8 @@ export class CanvasController {
   }
 
   private applyArtboardCenterSnapping(target: FabricObject) {
-    if (!this.artboard) return;
-
-    const artboardWidth = this.artboard.width ?? 0;
-    const artboardHeight = this.artboard.height ?? 0;
-
-    const artboardCenterX = artboardWidth / 2;
-    const artboardCenterY = artboardHeight / 2;
-
-    const bounds = target.getBoundingRect();
-
-    const targetCenterX = bounds.left + bounds.width / 2;
-    const targetCenterY = bounds.top + bounds.height / 2;
-
-    const deltaX = artboardCenterX - targetCenterX;
-    const deltaY = artboardCenterY - targetCenterY;
-
-    const verticalThreshold = this.snapLocks.vertical
-      ? this.snapReleaseThreshold
-      : this.snapThreshold;
-
-    const horizontalThreshold = this.snapLocks.horizontal
-      ? this.snapReleaseThreshold
-      : this.snapThreshold;
-
-    const shouldSnapVertical = Math.abs(deltaX) <= verticalThreshold;
-    const shouldSnapHorizontal = Math.abs(deltaY) <= horizontalThreshold;
-
-    if (shouldSnapVertical) {
-      if (!this.snapLocks.vertical) {
-        target.set({
-          left: (target.left ?? 0) + deltaX,
-        });
-      }
-
-      this.snapLocks.vertical = true;
-      this.activeGuides.vertical = true;
-    } else {
-      this.snapLocks.vertical = false;
-      this.activeGuides.vertical = false;
-    }
-
-    if (shouldSnapHorizontal) {
-      if (!this.snapLocks.horizontal) {
-        target.set({
-          top: (target.top ?? 0) + deltaY,
-        });
-      }
-
-      this.snapLocks.horizontal = true;
-      this.activeGuides.horizontal = true;
-    } else {
-      this.snapLocks.horizontal = false;
-      this.activeGuides.horizontal = false;
-    }
-
-    target.setCoords();
+    this.services?.snapping.snapToDocumentCenter(target);
   }
-
   private setupEvents() {
     if (!this.canvas) return;
 
@@ -481,8 +273,7 @@ export class CanvasController {
     });
 
     this.canvas.on("selection:cleared", () => {
-      this.activeGuides.vertical = false;
-      this.activeGuides.horizontal = false;
+      this.services?.snapping.reset();
 
       this.updateZundandUI();
       this.canvas?.requestRenderAll();
@@ -509,8 +300,7 @@ export class CanvasController {
 
     // Save only after the transform is finished
     this.canvas.on("object:modified", () => {
-      this.activeGuides.vertical = false;
-      this.activeGuides.horizontal = false;
+      this.services?.snapping.reset();
 
       this.updateZundandUI();
       this.saveToHistory();
@@ -679,40 +469,7 @@ export class CanvasController {
         ctx.restore();
       }
 
-      // Draw temporary center-alignment guides
-      if (this.artboard) {
-        const artboardWidth = this.artboard.width ?? 0;
-        const artboardHeight = this.artboard.height ?? 0;
-
-        const documentCenterX = artboardWidth / 2;
-        const documentCenterY = artboardHeight / 2;
-
-        ctx.save();
-
-        ctx.strokeStyle = "#ec4899";
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
-
-        if (this.activeGuides.vertical) {
-          const viewportX = documentCenterX * zoom + vpt[4];
-
-          ctx.beginPath();
-          ctx.moveTo(viewportX, 0);
-          ctx.lineTo(viewportX, canvasHeight);
-          ctx.stroke();
-        }
-
-        if (this.activeGuides.horizontal) {
-          const viewportY = documentCenterY * zoom + vpt[5];
-
-          ctx.beginPath();
-          ctx.moveTo(0, viewportY);
-          ctx.lineTo(canvasWidth, viewportY);
-          ctx.stroke();
-        }
-
-        ctx.restore();
-      }
+      this.services?.snapping.drawGuides(ctx);
     });
   }
 
@@ -753,161 +510,68 @@ export class CanvasController {
 
   // Update Zustand state based on canvas selection
   private updateZundandUI() {
-    if (!this.canvas) return;
+    if (!this.canvas || !this.services) return;
 
-    const activeObjects = this.canvas.getActiveObjects();
-    useEditorStore.getState().setSelectedObjectCount(activeObjects.length);
+    const snapshot = this.services.selection.createSnapshot(
+      this.canvas.getActiveObjects(),
+    );
+    const store = useEditorStore.getState();
 
-    if (activeObjects.length === 1) {
-      const obj = activeObjects[0];
-      const shadowObj = obj.shadow as Shadow | null;
-
-      const properties: ActiveProperties = {
-        id: (obj as any).id,
-        type: obj.type,
-        fill: (obj.fill as string) || "#000000",
-        stroke: (obj.stroke as string) || "",
-        strokeWidth: obj.strokeWidth || 0,
-        opacity: obj.opacity || 1,
-        rx: (obj as Rect).rx || 0,
-        shadowColor: shadowObj?.color || "",
-        shadowBlur: shadowObj?.blur || 0,
-        shadowOffsetX: shadowObj?.offsetX || 0,
-        shadowOffsetY: shadowObj?.offsetY || 0,
-        // Position, Size, and Rotation
-        left: Math.round(obj.left ?? 0),
-        top: Math.round(obj.top ?? 0),
-        width: Math.round((obj.width ?? 0) * (obj.scaleX ?? 1)),
-        height: Math.round((obj.height ?? 0) * (obj.scaleY ?? 1)),
-        angle: Math.round(obj.angle ?? 0),
-        flipX: !!obj.flipX,
-        flipY: !!obj.flipY,
-        // Text specific
-        fontFamily: (obj as IText).fontFamily || "Inter",
-        fontSize: (obj as IText).fontSize || 24,
-        fontWeight: (obj as IText).fontWeight || "normal",
-        charSpacing: (obj as IText).charSpacing || 0,
-        lineHeight: (obj as IText).lineHeight || 1.15,
-        textAlign: (obj as IText).textAlign || "left",
-        fontStyle: (obj as IText).fontStyle || "normal",
-        underline: (obj as IText).underline || false,
-      };
-
-      useEditorStore.getState().setActiveProperties(properties);
-    } else {
-      useEditorStore.getState().setActiveProperties(null);
-    }
-
+    store.setSelectedObjectCount(snapshot.selectedObjectCount);
+    store.setActiveProperties(snapshot.activeProperties);
     this.updateLayersList();
   }
-
   public updateLayersList() {
-    if (!this.canvas) return;
-
-    // Retrieve all active layers excluding the artboard
-    const objects = this.canvas
-      .getObjects()
-      .filter((obj) => !(obj as any).isArtboard);
-
-    // Reverse layer order to display layers from top-to-bottom
-    const layers = objects
-      .slice()
-      .reverse()
-      .map((obj) => ({
-        id: (obj as any).id || crypto.randomUUID(),
-        name: (obj as any).name || `${obj.type?.toUpperCase()} Layer`,
-        type: obj.type || "unknown",
-        visible: obj.visible !== false,
-        locked: !!((obj as any).locked || obj.lockMovementX),
-      }));
-
-    useEditorStore.getState().setLayers(layers);
+    if (!this.services) return;
+    useEditorStore.getState().setLayers(this.services.layers.list());
   }
-
-  // HISTORY MANAGER
   public saveToHistory() {
-    if (!this.canvas || this.isApplyingHistory) return;
-
-    const state = this.getCleanCanvasJSON();
-
-    // Avoid double push
-    if (
-      this.undoStack.length > 0 &&
-      this.undoStack[this.undoStack.length - 1] === state
-    ) {
-      return;
-    }
-
-    this.undoStack.push(state);
-    this.redoStack = []; // clear redo on new action
-
-    if (this.undoStack.length > 40) {
-      this.undoStack.shift(); // keep history limit to 40
-    }
-
-    useEditorStore.getState().setHistoryState(this.undoStack.length > 1, false);
+    if (!this.canvas || !this.services) return;
+    this.services.history.push(this.getCleanCanvasJSON());
   }
-
   public undo() {
-    if (!this.canvas || this.undoStack.length <= 1) return;
+    if (!this.canvas || !this.services) return;
 
-    this.isApplyingHistory = true;
-    const current = this.undoStack.pop()!;
-    this.redoStack.push(current);
-
-    const previousState = this.undoStack[this.undoStack.length - 1];
-    this.loadCanvasStateFromJSON(previousState).then(() => {
-      this.isApplyingHistory = false;
-      useEditorStore
-        .getState()
-        .setHistoryState(this.undoStack.length > 1, true);
-      this.triggerAutosave();
-    });
+    void this.services.history
+      .undo(this.getCleanCanvasJSON())
+      .then((changed) => {
+        if (changed) void this.triggerAutosave();
+      })
+      .catch((error) => {
+        console.error("Failed to undo canvas state:", error);
+      });
   }
-
   public redo() {
-    if (!this.canvas || this.redoStack.length === 0) return;
+    if (!this.canvas || !this.services) return;
 
-    this.isApplyingHistory = true;
-    const nextState = this.redoStack.pop()!;
-    this.undoStack.push(nextState);
-
-    this.loadCanvasStateFromJSON(nextState).then(() => {
-      this.isApplyingHistory = false;
-      useEditorStore
-        .getState()
-        .setHistoryState(true, this.redoStack.length > 0);
-      this.triggerAutosave();
-    });
+    void this.services.history
+      .redo(this.getCleanCanvasJSON())
+      .then((changed) => {
+        if (changed) void this.triggerAutosave();
+      })
+      .catch((error) => {
+        console.error("Failed to redo canvas state:", error);
+      });
   }
-
   private getCleanCanvasJSON(): string {
-    if (!this.canvas) return "";
-    // Export objects excluding artboard
+    if (!this.canvas || !this.services) return "";
+
     const objects = this.canvas
       .getObjects()
-      .filter((obj) => !(obj as any).isArtboard);
-    const objectsData = objects.map((obj) => {
-      const data = obj.toObject(["id", "name", "rx", "ry", "shadow"]);
-      return data;
-    });
+      .filter((object) => !(object as any).isArtboard)
+      .map((object) =>
+        object.toObject(["id", "name", "rx", "ry", "shadow"]),
+      ) as CanvasObjectData[];
 
-    const documentData: Record<string, unknown> = {
-      version: CANVAS_DOCUMENT_VERSION,
+    return this.services.documents.serialize({
       background:
         typeof this.artboard?.fill === "string"
           ? this.artboard.fill
           : "#ffffff",
-      objects: objectsData,
-    };
-
-    if (typeof this.documentTemplateVersion === "number") {
-      documentData.templateVersion = this.documentTemplateVersion;
-    }
-
-    return JSON.stringify(documentData);
+      objects,
+      templateVersion: this.documentTemplateVersion,
+    });
   }
-
   private async loadCanvasStateFromJSON(jsonString: string) {
     if (!this.canvas) return;
 
@@ -920,10 +584,17 @@ export class CanvasController {
     }
 
     try {
-      const parsed = JSON.parse(jsonString);
-      await this.loadObjects(parsed.objects || []);
-    } catch (e) {
-      console.error("Failed to load canvas state:", e);
+      const parsed = this.parseCanvasDocument(jsonString);
+      this.documentTemplateVersion = parsed.document.templateVersion;
+
+      if (this.artboard && parsed.document.background) {
+        this.artboard.set({ fill: parsed.document.background });
+      }
+
+      await this.loadObjects(parsed.document.objects);
+    } catch (error) {
+      console.error("Failed to load canvas state:", error);
+      throw error;
     }
 
     this.canvas.renderAll();
@@ -1065,93 +736,37 @@ export class CanvasController {
   }
 
   public async addImage(url: string, position?: { x: number; y: number }) {
-    if (!this.canvas || !this.artboard || this.disposed) return;
+    if (!this.services || this.disposed) return;
 
     try {
-      const imgElement = await new Promise<HTMLImageElement>(
-        (resolve, reject) => {
-          const img = new Image();
-          img.crossOrigin = "anonymous";
+      const image = await this.services.images.createImage(url, { position });
+      if (!image || this.disposed) return;
 
-          img.onload = () => resolve(img);
-          img.onerror = () => reject(new Error("Image failed to load"));
-
-          img.src = url;
-        },
-      );
-
-      if (!this.canvas || !this.artboard || this.disposed) return;
-
-      const naturalWidth = imgElement.naturalWidth || imgElement.width;
-      const naturalHeight = imgElement.naturalHeight || imgElement.height;
-
-      const artboardWidth = this.artboard.width ?? 1200;
-      const artboardHeight = this.artboard.height ?? 630;
-
-      const maxWidth = Math.min(500, artboardWidth * 0.6);
-      const maxHeight = Math.min(500, artboardHeight * 0.6);
-
-      // Scale proportionally without modifying the image's source dimensions.
-      const scale = Math.min(
-        1,
-        maxWidth / naturalWidth,
-        maxHeight / naturalHeight,
-      );
-
-      const displayedWidth = naturalWidth * scale;
-      const displayedHeight = naturalHeight * scale;
-
-      const left =
-        position?.x ?? Math.max(0, (artboardWidth - displayedWidth) / 2);
-
-      const top =
-        position?.y ?? Math.max(0, (artboardHeight - displayedHeight) / 2);
-
-      const fabImage = new FabricImage(imgElement, {
-        left,
-        top,
-        originX: "left",
-        originY: "top",
-
-        // Preserve the real image dimensions.
-        width: naturalWidth,
-        height: naturalHeight,
-
-        scaleX: scale,
-        scaleY: scale,
-        opacity: 1,
-      });
-
-      (fabImage as any).id = crypto.randomUUID();
-      (fabImage as any).name = "Image";
-
-      this.canvas.add(fabImage);
-      this.canvas.setActiveObject(fabImage);
-
-      fabImage.setCoords();
-      this.canvas.requestRenderAll();
-
+      this.services.images.addToCanvas(image);
       this.updateZundandUI();
-      this.updateLayersList();
       this.saveToHistory();
-      this.triggerAutosave();
+      void this.triggerAutosave();
     } catch (error) {
       console.error("Failed to import image:", error);
     }
   }
+  public async addSVG(svgString: string, position?: { x: number; y: number }) {
+    if (!this.services || this.disposed) return;
 
-  public addSVG(svgString: string, position?: { x: number; y: number }) {
-    // Standard Fabric parsing for SVG strings isn't built into core direct in simple ways in v6+,
-    // but we can load an SVG as an Image data URL easily! This is extremely robust and avoids parser issues.
-    const blob = new Blob([svgString], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    this.addImage(url, position).then(() => {
-      // Free URL memory after some time
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    });
+    try {
+      const image = await this.services.images.createSvgImage(svgString, {
+        position,
+      });
+      if (!image || this.disposed) return;
+
+      this.services.images.addToCanvas(image);
+      this.updateZundandUI();
+      this.saveToHistory();
+      void this.triggerAutosave();
+    } catch (error) {
+      console.error("Failed to import SVG:", error);
+    }
   }
-
-  // LAYER ACTIONS
   public deleteSelected() {
     if (!this.canvas) return;
 
@@ -1569,61 +1184,47 @@ export class CanvasController {
   }
 
   public renameLayer(id: string, newName: string) {
-    if (!this.canvas) return;
-    const obj = this.canvas.getObjects().find((o) => (o as any).id === id);
-    if (obj) {
-      (obj as any).name = newName;
-      this.updateLayersList();
-      this.saveToHistory();
-      this.triggerAutosave();
-    }
+    if (!this.services || !this.services.layers.rename(id, newName)) return;
+    this.updateLayersList();
+    this.saveToHistory();
+    void this.triggerAutosave();
   }
-
   public selectObjectById(id: string) {
-    if (!this.canvas) return;
-    const obj = this.canvas.getObjects().find((o) => (o as any).id === id);
-    if (obj && !(obj as any).isArtboard) {
-      this.canvas.setActiveObject(obj);
-      this.canvas.renderAll();
-      this.updateZundandUI();
-    }
-  }
+    if (!this.canvas || !this.services) return;
 
+    const object = this.services.layers.findById(id);
+    if (!object) return;
+
+    this.canvas.setActiveObject(object);
+    this.canvas.requestRenderAll();
+    this.updateZundandUI();
+  }
   public toggleLayerVisibility(id: string) {
-    if (!this.canvas) return;
-    const obj = this.canvas.getObjects().find((o) => (o as any).id === id);
-    if (obj) {
-      obj.set({ visible: obj.visible === false });
-      this.canvas.renderAll();
-      this.updateLayersList();
-      this.saveToHistory();
-      this.triggerAutosave();
-    }
-  }
+    if (!this.services) return;
 
+    const object = this.services.layers.findById(id);
+    if (!object) return;
+
+    if (!this.services.layers.setVisibility(id, object.visible === false))
+      return;
+    this.updateLayersList();
+    this.saveToHistory();
+    void this.triggerAutosave();
+  }
   public toggleLayerLock(id: string) {
-    if (!this.canvas) return;
-    const obj = this.canvas.getObjects().find((o) => (o as any).id === id);
-    if (obj) {
-      const isLocked = !obj.lockMovementX;
-      obj.set({
-        lockMovementX: isLocked,
-        lockMovementY: isLocked,
-        lockScalingX: isLocked,
-        lockScalingY: isLocked,
-        lockRotation: isLocked,
-        hasControls: !isLocked,
-        selectable: !isLocked,
-      });
-      (obj as any).locked = isLocked;
-      this.canvas.renderAll();
-      this.updateLayersList();
-      this.saveToHistory();
-      this.triggerAutosave();
-    }
-  }
+    if (!this.services) return;
 
-  // GRID TOGGLE
+    const object = this.services.layers.findById(id);
+    if (!object) return;
+
+    if (!this.services.layers.setLocked(id, !Boolean((object as any).locked))) {
+      return;
+    }
+
+    this.updateZundandUI();
+    this.saveToHistory();
+    void this.triggerAutosave();
+  }
   public toggleGrid(show: boolean) {
     this.showGrid = show;
     if (!this.canvas) return;
@@ -1709,46 +1310,18 @@ export class CanvasController {
   }
 
   public zoomToFit() {
-    if (!this.canvas || !this.artboard || this.disposed) return;
-
-    const w = this.canvas.getWidth();
-    const h = this.canvas.getHeight();
-    const aw = this.artboard.width!;
-    const ah = this.artboard.height!;
-
-    const padding = 60;
-    const zoom = Math.min((w - padding * 2) / aw, (h - padding * 2) / ah);
-    const translateX = (w - aw * zoom) / 2;
-    const translateY = (h - ah * zoom) / 2;
-
-    const vpt = [zoom, 0, 0, zoom, translateX, translateY] as TMat2D;
-
-    this.canvas.setViewportTransform(vpt);
-    this.canvas.renderAll();
-
-    useEditorStore.getState().setZoom(zoom);
+    if (!this.services || this.disposed) return;
+    this.services.viewport.zoomToFit();
   }
-
   public setZoom(zoomValue: number) {
-    if (!this.canvas) return;
-    const zoom = Math.max(0.05, Math.min(20, zoomValue));
-    // Zoom relative to the center of the canvas viewport
-    const width = this.canvas.getWidth();
-    const height = this.canvas.getHeight();
-    this.canvas.zoomToPoint(new Point(width / 2, height / 2), zoom);
-    useEditorStore.getState().setZoom(zoom);
+    this.services?.viewport.setZoom(zoomValue);
   }
-
   public zoomIn() {
-    if (!this.canvas) return;
-    this.setZoom(this.canvas.getZoom() + 0.1);
+    this.services?.viewport.zoomIn();
   }
-
   public zoomOut() {
-    if (!this.canvas) return;
-    this.setZoom(this.canvas.getZoom() - 0.1);
+    this.services?.viewport.zoomOut();
   }
-
   private createExportService() {
     if (!this.canvas || !this.artboard) return null;
 
@@ -1764,19 +1337,11 @@ export class CanvasController {
   }
 
   public zoomTo100() {
-    this.setZoom(1.0);
+    this.services?.viewport.zoomTo100();
   }
-
   public resize(width: number, height: number) {
-    if (!this.canvas || !this.artboard) return;
-
-    this.canvas.setDimensions({ width, height });
-    this.enforceDocumentOrigin();
-    this.zoomToFit();
-    this.canvas.renderAll();
-    this.validateDocumentGeometry("canvas resize");
+    this.services?.viewport.resize(width, height);
   }
-
   public dispose() {
     if (this.disposed) return;
     this.disposed = true;
@@ -1787,6 +1352,7 @@ export class CanvasController {
       this.canvas.dispose();
       this.canvas = null;
     }
+    this.services = null;
     this.artboard = null;
     this.onProjectSaveCallback = null;
   }
@@ -1795,25 +1361,11 @@ export class CanvasController {
     viewportX: number,
     viewportY: number,
   ): { x: number; y: number } {
-    if (!this.canvas) {
-      return { x: 0, y: 0 };
-    }
-
-    const vpt = this.canvas.viewportTransform;
-
-    if (!vpt) {
-      return {
-        x: viewportX,
-        y: viewportY,
-      };
-    }
-
-    const zoomX = vpt[0] || 1;
-    const zoomY = vpt[3] || 1;
-
-    return {
-      x: (viewportX - vpt[4]) / zoomX,
-      y: (viewportY - vpt[5]) / zoomY,
-    };
+    return (
+      this.services?.viewport.viewportToDocumentPoint(viewportX, viewportY) ?? {
+        x: 0,
+        y: 0,
+      }
+    );
   }
 }
