@@ -99,12 +99,9 @@ export function Toolbar({
     >
       {/* Title & Preset Indicator / Path */}
       <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
-            <path d="M12 3v18M3 12h18" stroke-linecap="round"/>
-          </svg>
-          <span className="text-white font-semibold text-sm tracking-tight">glyft</span>
-        </div>
+          <div className="flex items-center gap-2">
+            <span className="text-white font-semibold text-sm tracking-tight">Glyftgit status</span>
+          </div>
         
         {currentProject ? (
           <nav className="flex items-center gap-3 text-xs font-medium">

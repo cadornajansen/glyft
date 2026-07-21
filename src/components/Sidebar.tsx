@@ -80,8 +80,9 @@ function ShareIcon(props: any) {
 interface SidebarProps {
   onLoadProject: (id: string) => Promise<void>;
   onDeleteProject: (projectId: string) => Promise<void>;
-  onAddImage: (url: string) => void;
-  onAddSVG: (svg: string) => void;
+  onAddImage: (url: string, position?: { x: number; y: number }) => void;
+
+  onAddSVG: (svg: string, position?: { x: number; y: number }) => void;
 }
 
 export function Sidebar({

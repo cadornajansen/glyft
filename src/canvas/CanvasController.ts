@@ -1064,7 +1064,7 @@ export class CanvasController {
     this.triggerAutosave();
   }
 
-  public async addImage(url: string) {
+  public async addImage(url: string, position?: { x: number; y: number }) {
     if (!this.canvas || !this.artboard || this.disposed) return;
 
     try {
@@ -1072,34 +1072,53 @@ export class CanvasController {
         (resolve, reject) => {
           const img = new Image();
           img.crossOrigin = "anonymous";
+
           img.onload = () => resolve(img);
           img.onerror = () => reject(new Error("Image failed to load"));
+
           img.src = url;
         },
       );
+
       if (!this.canvas || !this.artboard || this.disposed) return;
 
-      // Constrain size
-      let width = imgElement.width;
-      let height = imgElement.height;
-      const maxDim = 300;
-      if (width > maxDim || height > maxDim) {
-        if (width > height) {
-          height = (height * maxDim) / width;
-          width = maxDim;
-        } else {
-          width = (width * maxDim) / height;
-          height = maxDim;
-        }
-      }
+      const naturalWidth = imgElement.naturalWidth || imgElement.width;
+      const naturalHeight = imgElement.naturalHeight || imgElement.height;
+
+      const artboardWidth = this.artboard.width ?? 1200;
+      const artboardHeight = this.artboard.height ?? 630;
+
+      const maxWidth = Math.min(500, artboardWidth * 0.6);
+      const maxHeight = Math.min(500, artboardHeight * 0.6);
+
+      // Scale proportionally without modifying the image's source dimensions.
+      const scale = Math.min(
+        1,
+        maxWidth / naturalWidth,
+        maxHeight / naturalHeight,
+      );
+
+      const displayedWidth = naturalWidth * scale;
+      const displayedHeight = naturalHeight * scale;
+
+      const left =
+        position?.x ?? Math.max(0, (artboardWidth - displayedWidth) / 2);
+
+      const top =
+        position?.y ?? Math.max(0, (artboardHeight - displayedHeight) / 2);
 
       const fabImage = new FabricImage(imgElement, {
-        left: 40,
-        top: 40,
+        left,
+        top,
         originX: "left",
         originY: "top",
-        width,
-        height,
+
+        // Preserve the real image dimensions.
+        width: naturalWidth,
+        height: naturalHeight,
+
+        scaleX: scale,
+        scaleY: scale,
         opacity: 1,
       });
 
@@ -1108,20 +1127,25 @@ export class CanvasController {
 
       this.canvas.add(fabImage);
       this.canvas.setActiveObject(fabImage);
-      this.canvas.renderAll();
+
+      fabImage.setCoords();
+      this.canvas.requestRenderAll();
+
+      this.updateZundandUI();
+      this.updateLayersList();
       this.saveToHistory();
       this.triggerAutosave();
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error("Failed to import image:", error);
     }
   }
 
-  public addSVG(svgString: string) {
+  public addSVG(svgString: string, position?: { x: number; y: number }) {
     // Standard Fabric parsing for SVG strings isn't built into core direct in simple ways in v6+,
     // but we can load an SVG as an Image data URL easily! This is extremely robust and avoids parser issues.
     const blob = new Blob([svgString], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
-    this.addImage(url).then(() => {
+    this.addImage(url, position).then(() => {
       // Free URL memory after some time
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
@@ -1765,5 +1789,31 @@ export class CanvasController {
     }
     this.artboard = null;
     this.onProjectSaveCallback = null;
+  }
+
+  public viewportToDocumentPoint(
+    viewportX: number,
+    viewportY: number,
+  ): { x: number; y: number } {
+    if (!this.canvas) {
+      return { x: 0, y: 0 };
+    }
+
+    const vpt = this.canvas.viewportTransform;
+
+    if (!vpt) {
+      return {
+        x: viewportX,
+        y: viewportY,
+      };
+    }
+
+    const zoomX = vpt[0] || 1;
+    const zoomY = vpt[3] || 1;
+
+    return {
+      x: (viewportX - vpt[4]) / zoomX,
+      y: (viewportY - vpt[5]) / zoomY,
+    };
   }
 }

@@ -452,8 +452,64 @@ export default function App() {
   const handleUndo = () => canvasControllerRef.current?.undo();
   const handleRedo = () => canvasControllerRef.current?.redo();
   const handleZoomToFit = () => canvasControllerRef.current?.zoomToFit();
-  const handleAddImage = (url: string) =>
-    canvasControllerRef.current?.addImage(url);
+  const handleAddImage = (url: string, position?: { x: number; y: number }) => {
+    canvasControllerRef.current?.addImage(url, position);
+  };
+  const handleCanvasDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleCanvasDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    const file = event.dataTransfer.files?.[0];
+
+    if (!file || !file.type.startsWith("image/")) return;
+
+    const controller = canvasControllerRef.current;
+    const container = document.getElementById("canvas-container");
+
+    if (!controller || !container) return;
+
+    const rect = container.getBoundingClientRect();
+
+    const viewportX = event.clientX - rect.left;
+    const viewportY = event.clientY - rect.top;
+
+    const documentPoint = controller.viewportToDocumentPoint(
+      viewportX,
+      viewportY,
+    );
+
+    if (file.type === "image/svg+xml") {
+      const reader = new FileReader();
+
+      reader.onload = (loadEvent) => {
+        const svg = loadEvent.target?.result;
+
+        if (typeof svg === "string") {
+          canvasControllerRef.current?.addSVG(svg, documentPoint);
+        }
+      };
+
+      reader.readAsText(file);
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = (loadEvent) => {
+      const dataUrl = loadEvent.target?.result;
+
+      if (typeof dataUrl === "string") {
+        canvasControllerRef.current?.addImage(dataUrl, documentPoint);
+      }
+    };
+
+    reader.readAsDataURL(file);
+  };
+
   const handleAddSVG = (svg: string) =>
     canvasControllerRef.current?.addSVG(svg);
 
@@ -557,6 +613,8 @@ export default function App() {
           id="canvas-container"
           className="relative flex-1 h-full w-full overflow-hidden bg-[#050505] flex items-center justify-center cursor-default"
           onContextMenu={handleContextMenu}
+          onDragOver={handleCanvasDragOver}
+          onDrop={handleCanvasDrop}
         >
           {currentProject ? (
             <canvas id="fabric-canvas" className="w-full h-full block" />
