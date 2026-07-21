@@ -58,15 +58,17 @@ export function installCompactSelectionUI() {
 
   applyPrototypeStyle();
 
-  const canvasPrototype = FabricCanvas.prototype as FabricCanvas & {
+  const canvasPrototype = FabricCanvas.prototype as unknown as {
     [ADD_PATCH_FLAG]?: boolean;
+    add: (...objects: FabricObject[]) => number;
   };
 
   if (!canvasPrototype[ADD_PATCH_FLAG]) {
     canvasPrototype[ADD_PATCH_FLAG] = true;
-    const originalAdd = FabricCanvas.prototype.add;
+    const originalAdd = canvasPrototype.add;
 
-    FabricCanvas.prototype.add = function compactStyledAdd(
+    canvasPrototype.add = function compactStyledAdd(
+      this: FabricCanvas,
       ...objects: FabricObject[]
     ) {
       applyPrototypeStyle();
