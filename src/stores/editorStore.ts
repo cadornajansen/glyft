@@ -58,6 +58,10 @@ interface EditorUIState {
   activeTab: "projects" | "assets" | "export";
   isRightSidebarOpen: boolean;
   isPanning: boolean;
+  /** Incremented timestamp after each successful canvas autosave. Subscribers use this to re-sync sidebar project list. */
+  lastAutosaveAt: number;
+  /** Non-null when a project's canvasData failed to parse on load. */
+  canvasLoadError: string | null;
 
   setCurrentProjectId: (id: string | null) => void;
   setCurrentProject: (project: Project | null) => void;
@@ -74,6 +78,8 @@ interface EditorUIState {
   setActiveTab: (tab: "projects" | "assets" | "export") => void;
   setRightSidebarOpen: (open: boolean) => void;
   setIsPanning: (panning: boolean) => void;
+  notifyAutosaved: (ts: number) => void;
+  setCanvasLoadError: (msg: string | null) => void;
   resetEditorSession: () => void;
 }
 
@@ -94,6 +100,8 @@ export const useEditorStore = create<EditorUIState>((set) => ({
   activeTab: "projects",
   isRightSidebarOpen: true,
   isPanning: false,
+  lastAutosaveAt: 0,
+  canvasLoadError: null,
 
   setCurrentProjectId: (id) => set({ currentProjectId: id }),
   setCurrentProject: (project) => set({ currentProject: project }),
@@ -110,6 +118,8 @@ export const useEditorStore = create<EditorUIState>((set) => ({
   setActiveTab: (tab) => set({ activeTab: tab, isLeftSidebarOpen: true }),
   setRightSidebarOpen: (open) => set({ isRightSidebarOpen: open }),
   setIsPanning: (panning) => set({ isPanning: panning }),
+  notifyAutosaved: (ts) => set({ lastAutosaveAt: ts }),
+  setCanvasLoadError: (msg) => set({ canvasLoadError: msg }),
   resetEditorSession: () =>
     set({
       selectedObjectCount: 0,

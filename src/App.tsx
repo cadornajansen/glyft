@@ -5,6 +5,7 @@ import { PropertiesPanel } from './components/PropertiesPanel';
 import { LayersPanel } from './components/LayersPanel';
 import { StatusBar } from './components/StatusBar';
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { DocumentRecoveryDialog } from "./components/DocumentRecoveryDialog";
 import { CanvasController } from "./canvas/CanvasController";
 import { useEditorStore, type ActiveProperties } from "./stores/editorStore";
 import { getAllProjects, saveProject, deleteProject, db } from "./db/projectDb";
@@ -38,6 +39,8 @@ export default function App() {
     setRightSidebarOpen,
     selectedObjectCount,
     activeProperties,
+    canvasLoadError,
+    setCanvasLoadError,
   } = useEditorStore();
 
   const [isSaving, setIsSaving] = useState(false);
@@ -127,6 +130,8 @@ export default function App() {
 
   const loadProjectIntoCanvas = async (project: Project) => {
     disposeCurrentController();
+    // Clear any stale document error from the previous project
+    useEditorStore.getState().setCanvasLoadError(null);
 
     const container = document.getElementById("canvas-container");
     const width = container?.clientWidth || 900;
@@ -184,8 +189,16 @@ export default function App() {
           if (storeStateAfter.currentProjectId === projectId) {
             setCurrentProject(updatedProj);
           }
+          // Signal sidebar to re-query the project list so thumbnails/timestamps refresh
+          useEditorStore.getState().notifyAutosaved(Date.now());
           setIsSaving(false);
         }, 1200); // Debounce database saves
+      },
+      (err) => {
+        // onLoadError: canvas document failed to parse
+        useEditorStore.getState().setCanvasLoadError(
+          err instanceof Error ? err.message : "Unknown document error"
+        );
       },
     );
 
@@ -590,6 +603,23 @@ export default function App() {
     document.removeEventListener("mouseup", handleResizeMouseUp);
   };
 
+  // 7. Document recovery handlers
+  const handleRecoveryKeepBlank = () => {
+    setCanvasLoadError(null);
+    // Trigger autosave with an empty canvas so the blank state is persisted
+    if (canvasControllerRef.current) {
+      canvasControllerRef.current.saveToHistory();
+      void canvasControllerRef.current.triggerAutosave();
+    }
+  };
+
+  const handleRecoveryDelete = async () => {
+    setCanvasLoadError(null);
+    if (currentProjectId) {
+      await handleDeleteProject(currentProjectId);
+    }
+  };
+
   const appShell = (
     <div
       id="glyft-app-root"
@@ -852,6 +882,17 @@ export default function App() {
 
       {/* Bottom Status bar */}
       <StatusBar isSaving={isSaving} />
+
+      {/* Document recovery overlay */}
+      {canvasLoadError && currentProject && (
+        <DocumentRecoveryDialog
+          projectName={currentProject.name}
+          errorMessage={canvasLoadError}
+          onKeepBlank={handleRecoveryKeepBlank}
+          onDeleteProject={handleRecoveryDelete}
+          onDismiss={() => setCanvasLoadError(null)}
+        />
+      )}
     </div>
   );
 

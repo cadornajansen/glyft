@@ -107,6 +107,7 @@ export function Sidebar({
     setActiveTab,
     isLeftSidebarOpen,
     setLeftSidebarOpen,
+    lastAutosaveAt,
   } = useEditorStore();
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -124,7 +125,7 @@ export function Sidebar({
 
   useEffect(() => {
     void loadProjects();
-  }, [currentProjectId]);
+  }, [currentProjectId, lastAutosaveAt]);
 
   const openProject = async (project: Project) => {
     const store = useEditorStore.getState();
