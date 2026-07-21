@@ -1,0 +1,111 @@
+import { CANVAS_DOCUMENT_VERSION, type Project } from "../types";
+
+export const DEFAULT_OG_TEMPLATE_VERSION = 2;
+export const DEFAULT_OG_TEMPLATE_PROJECT_ID = "seed-og-template";
+
+export const createDefaultOgTemplateProject = (): Project => {
+  const now = Date.now();
+
+  return {
+    id: DEFAULT_OG_TEMPLATE_PROJECT_ID,
+    name: "Developer Social OG Banner",
+    width: 1200,
+    height: 630,
+    createdAt: now,
+    updatedAt: now,
+    canvasData: JSON.stringify({
+      version: CANVAS_DOCUMENT_VERSION,
+      templateVersion: DEFAULT_OG_TEMPLATE_VERSION,
+      background: "#ffffff",
+      objects: [
+        {
+          type: "rect",
+          left: 100,
+          top: 50,
+          width: 1000,
+          height: 530,
+          fill: "#0a0a0c",
+          rx: 24,
+          ry: 24,
+          name: "Card Outline Base",
+          stroke: "#1e1e24",
+          strokeWidth: 4,
+        },
+        {
+          type: "circle",
+          left: 750,
+          top: 100,
+          radius: 140,
+          fill: "#4f46e5",
+          opacity: 0.16,
+          name: "Indigo Ambient Glow",
+        },
+        {
+          type: "circle",
+          left: 850,
+          top: 180,
+          radius: 90,
+          fill: "#06b6d4",
+          opacity: 0.12,
+          name: "Cyan Accent Glow",
+        },
+        {
+          type: "itext",
+          left: 180,
+          top: 180,
+          text: "glyft Graphics Editor",
+          fontFamily: "Space Grotesk, sans-serif",
+          fontSize: 52,
+          fill: "#fafafa",
+          fontWeight: "bold",
+          name: "Main Display Title",
+        },
+        {
+          type: "itext",
+          left: 180,
+          top: 260,
+          text: "Fast, code-focused developer web assets in seconds.",
+          fontFamily: "Inter, sans-serif",
+          fontSize: 22,
+          fill: "#a1a1aa",
+          name: "Helper Subtitle",
+        },
+        {
+          type: "itext",
+          left: 180,
+          top: 360,
+          text: "V : Select   |   R : Rect   |   C : Circle   |   T : Text   |   I : Image",
+          fontFamily: "JetBrains Mono, monospace",
+          fontSize: 14,
+          fill: "#6366f1",
+          fontWeight: "bold",
+          name: "Shortcuts Visual Guide",
+        },
+        {
+          type: "rect",
+          left: 180,
+          top: 420,
+          width: 130,
+          height: 32,
+          fill: "#18181b",
+          rx: 6,
+          ry: 6,
+          stroke: "#27272a",
+          strokeWidth: 1,
+          name: "Button Container",
+        },
+        {
+          type: "itext",
+          left: 205,
+          top: 426,
+          text: "Get Started ↗",
+          fontFamily: "Inter, sans-serif",
+          fontSize: 12,
+          fill: "#e4e4e7",
+          fontWeight: "bold",
+          name: "Button Text",
+        },
+      ],
+    }),
+  };
+};

@@ -42,14 +42,20 @@ interface EditorUIState {
   gridSize: number;
   selectedObjectCount: number;
   activeProperties: ActiveProperties | null;
-  layers: { id: string; name: string; type: string; visible: boolean; locked: boolean }[];
+  layers: {
+    id: string;
+    name: string;
+    type: string;
+    visible: boolean;
+    locked: boolean;
+  }[];
   canUndo: boolean;
   canRedo: boolean;
   isLeftSidebarOpen: boolean;
-  activeTab: 'projects' | 'assets' | 'export';
+  activeTab: "projects" | "assets" | "export";
   isRightSidebarOpen: boolean;
   isPanning: boolean;
-  
+
   // Actions
   setCurrentProjectId: (id: string | null) => void;
   setCurrentProject: (project: Project | null) => void;
@@ -59,18 +65,27 @@ interface EditorUIState {
   setGridSize: (size: number) => void;
   setSelectedObjectCount: (count: number) => void;
   setActiveProperties: (props: ActiveProperties | null) => void;
-  setLayers: (layers: { id: string; name: string; type: string; visible: boolean; locked: boolean }[]) => void;
+  setLayers: (
+    layers: {
+      id: string;
+      name: string;
+      type: string;
+      visible: boolean;
+      locked: boolean;
+    }[],
+  ) => void;
   setHistoryState: (canUndo: boolean, canRedo: boolean) => void;
   setLeftSidebarOpen: (open: boolean) => void;
-  setActiveTab: (tab: 'projects' | 'assets' | 'export') => void;
+  setActiveTab: (tab: "projects" | "assets" | "export") => void;
   setRightSidebarOpen: (open: boolean) => void;
   setIsPanning: (panning: boolean) => void;
+  resetEditorSession: () => void;
 }
 
 export const useEditorStore = create<EditorUIState>((set) => ({
   currentProjectId: null,
   currentProject: null,
-  activeTool: 'select',
+  activeTool: "select",
   zoom: 1.0,
   showGrid: true,
   gridSize: 20,
@@ -80,7 +95,7 @@ export const useEditorStore = create<EditorUIState>((set) => ({
   canUndo: false,
   canRedo: false,
   isLeftSidebarOpen: true,
-  activeTab: 'projects',
+  activeTab: "projects",
   isRightSidebarOpen: true,
   isPanning: false,
 
@@ -98,4 +113,13 @@ export const useEditorStore = create<EditorUIState>((set) => ({
   setActiveTab: (tab) => set({ activeTab: tab, isLeftSidebarOpen: true }),
   setRightSidebarOpen: (open) => set({ isRightSidebarOpen: open }),
   setIsPanning: (panning) => set({ isPanning: panning }),
+  resetEditorSession: () =>
+    set({
+      selectedObjectCount: 0,
+      activeProperties: null,
+      layers: [],
+      canUndo: false,
+      canRedo: false,
+      isPanning: false,
+    }),
 }));
