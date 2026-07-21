@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import "fake-indexeddb/auto";
 import { db } from "./projectDb";
 import { saveProjectCanvasState } from "./saveProjectCanvasState";
+import { updateProjectDimensions, renameProject, duplicateLatestProject } from "./updateProjectMetadata";
 import { type Project } from "../types";
 
 describe("saveProjectCanvasState", () => {
@@ -216,5 +217,172 @@ describe("saveProjectCanvasState", () => {
 
     const inDb = await db.projects.get("test-id");
     expect(inDb!.name).toBe("Concurrently Updated Name");
+  });
+
+  describe("updateProjectMetadata Helpers", () => {
+    it("A. Artboard dimensions persist", async () => {
+      const project: Project = {
+        id: "test-dimensions",
+        name: "Dimension Test",
+        width: 800,
+        height: 600,
+        createdAt: 1000,
+        updatedAt: 1000,
+        canvasData: "canvas-original",
+        thumbnail: "thumb-original",
+      };
+      await db.projects.put(project);
+
+      const updated = await updateProjectDimensions("test-dimensions", 1920, 1080, 2000);
+      expect(updated).not.toBeNull();
+      expect(updated!.width).toBe(1920);
+      expect(updated!.height).toBe(1080);
+      expect(updated!.canvasData).toBe("canvas-original");
+      expect(updated!.thumbnail).toBe("thumb-original");
+      expect(updated!.updatedAt).toBe(2000);
+
+      const inDb = await db.projects.get("test-dimensions");
+      expect(inDb).toEqual(updated);
+    });
+
+    it("B. Artboard update preserves concurrent canvas changes", async () => {
+      const project: Project = {
+        id: "test-dimensions-concurrency",
+        name: "Concurrency Test",
+        width: 800,
+        height: 600,
+        createdAt: 1000,
+        updatedAt: 1000,
+        canvasData: "canvas-original",
+        thumbnail: "thumb-original",
+      };
+      await db.projects.put(project);
+
+      // Concurrent change updates the canvasData in the DB
+      await db.projects.update("test-dimensions-concurrency", {
+        canvasData: "canvas-newer",
+        thumbnail: "thumb-newer",
+      });
+
+      const updated = await updateProjectDimensions("test-dimensions-concurrency", 1200, 900, 2000);
+      expect(updated).not.toBeNull();
+      expect(updated!.width).toBe(1200);
+      expect(updated!.height).toBe(900);
+      expect(updated!.canvasData).toBe("canvas-newer");
+      expect(updated!.thumbnail).toBe("thumb-newer");
+    });
+
+    it("C. Rename preserves canvas data", async () => {
+      const project: Project = {
+        id: "test-rename",
+        name: "Old Name",
+        width: 800,
+        height: 600,
+        createdAt: 1000,
+        updatedAt: 1000,
+        canvasData: "canvas-newer-state",
+        thumbnail: "thumb-newer-state",
+      };
+      await db.projects.put(project);
+
+      const updated = await renameProject("test-rename", "New Name", 2000);
+      expect(updated).not.toBeNull();
+      expect(updated!.name).toBe("New Name");
+      expect(updated!.width).toBe(800);
+      expect(updated!.height).toBe(600);
+      expect(updated!.canvasData).toBe("canvas-newer-state");
+      expect(updated!.thumbnail).toBe("thumb-newer-state");
+      expect(updated!.updatedAt).toBe(2000);
+
+      const inDb = await db.projects.get("test-rename");
+      expect(inDb).toEqual(updated);
+    });
+
+    it("D. Rename missing project", async () => {
+      // Do not put in DB
+      const updated = await renameProject("non-existent", "New Name", 2000);
+      expect(updated).toBeNull();
+
+      const inDb = await db.projects.get("non-existent");
+      expect(inDb).toBeUndefined();
+    });
+
+    it("E. Duplicate uses latest database record", async () => {
+      const project: Project = {
+        id: "source-id",
+        name: "Source Project",
+        width: 800,
+        height: 600,
+        createdAt: 1000,
+        updatedAt: 1000,
+        canvasData: "canvas-old-sidebar",
+        thumbnail: "thumb-old-sidebar",
+      };
+      await db.projects.put(project);
+
+      // Simulate a concurrent autosave that updates DB canvas data
+      await db.projects.update("source-id", {
+        canvasData: "canvas-new-autosave",
+        thumbnail: "thumb-new-autosave",
+      });
+
+      const duplicate = await duplicateLatestProject("source-id");
+      expect(duplicate).not.toBeNull();
+      expect(duplicate!.id).not.toBe("source-id");
+      expect(duplicate!.name).toBe("Source Project (Copy)");
+      expect(duplicate!.canvasData).toBe("canvas-new-autosave");
+      expect(duplicate!.thumbnail).toBe("thumb-new-autosave");
+    });
+
+    it("F. Duplicate creates independent record", async () => {
+      const project: Project = {
+        id: "source-id",
+        name: "Source Project",
+        width: 800,
+        height: 600,
+        createdAt: 1000,
+        updatedAt: 1000,
+        canvasData: "canvas-data",
+        thumbnail: "thumb-data",
+      };
+      await db.projects.put(project);
+
+      const duplicate = await duplicateLatestProject("source-id");
+      expect(duplicate).not.toBeNull();
+      expect(duplicate!.id).not.toBe("source-id");
+      expect(duplicate!.createdAt).toBeGreaterThan(1000);
+      expect(duplicate!.updatedAt).toBe(duplicate!.createdAt);
+
+      // Mutate duplicate in DB
+      await db.projects.update(duplicate!.id, { canvasData: "mutated-data" });
+
+      // Verify source remains unchanged
+      const source = await db.projects.get("source-id");
+      expect(source!.canvasData).toBe("canvas-data");
+    });
+
+    it("G. Unknown metadata preservation", async () => {
+      const project = {
+        id: "meta-id",
+        name: "Meta Project",
+        width: 800,
+        height: 600,
+        createdAt: 1000,
+        updatedAt: 1000,
+        canvasData: "canvas-data",
+        thumbnail: "thumb-data",
+        extraFutureField: "future-value",
+      } as any;
+      await db.projects.put(project);
+
+      const updatedDim = (await updateProjectDimensions("meta-id", 1024, 768, 2000)) as any;
+      expect(updatedDim.extraFutureField).toBe("future-value");
+
+      const updatedRename = (await renameProject("meta-id", "Renamed Meta", 3000)) as any;
+      expect(updatedRename.extraFutureField).toBe("future-value");
+
+      const duplicated = (await duplicateLatestProject("meta-id")) as any;
+      expect(duplicated.extraFutureField).toBe("future-value");
+    });
   });
 });
