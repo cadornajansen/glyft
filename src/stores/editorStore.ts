@@ -37,6 +37,8 @@ export interface EditorLayer {
   type: string;
   visible: boolean;
   locked: boolean;
+  parentId?: string;
+  children?: EditorLayer[];
 }
 
 interface EditorUIState {
