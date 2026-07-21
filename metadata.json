@@ -1,0 +1,6 @@
+{
+  "name": "glyft",
+  "description": "Lightweight, developer-first graphics editor for creating web assets quickly.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
