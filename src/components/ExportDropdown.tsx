@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   Check,
   ChevronDown,
@@ -123,9 +123,7 @@ export function ExportDropdown({ onExport }: ExportDropdownProps) {
     }
   };
 
-  const handleTemplateImport = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleTemplateImport = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || isImporting || activeOperation) return;
