@@ -1,21 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App.tsx";
+import RootApp from "./RootApp.tsx";
 import "./index.css";
-import "./propertiesPanelPolish.css";
-import "./sidebarPolish.css";
-import { installColorInputCoalescing } from "./installColorInputCoalescing";
-import { installCompactSelectionUI } from "./canvas/installCompactSelectionUI";
-import { installElementContextMenu } from "./canvas/installElementContextMenu";
-import { installTextPropertyPolish } from "./canvas/installTextPropertyPolish";
-
-installColorInputCoalescing();
-installCompactSelectionUI();
-installElementContextMenu();
-installTextPropertyPolish();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <RootApp />
   </StrictMode>,
 );
