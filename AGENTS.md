@@ -111,3 +111,5 @@ Use this file as the first source of context before modifying this repository. K
 - Autosave metadata integrity issue (Issue #5) fixed by extracting transaction-safe persistence helper `src/db/saveProjectCanvasState.ts` and updating `src/App.tsx` with double state checks.
 - GitHub Actions now runs `npm run test` between typecheck and production build.
 - Remaining testing gaps (Issue #11): broader coverage for serializer, history, export, and browser-based end-to-end regression tests.
+- Fixed three critical data-integrity issues (Artboard dimension persistence, Sidebar project rename overwriting newer canvas data, and Sidebar duplicate copying stale project data) by introducing `src/db/updateProjectMetadata.ts` containing targeted transactional helpers.
+- Extended the Vitest suite in `src/db/saveProjectCanvasState.test.ts` to include 7 new regression tests verifying metadata preservation, concurrency, and independent duplicate states.
