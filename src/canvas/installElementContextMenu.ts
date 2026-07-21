@@ -4,30 +4,32 @@ import { CanvasController } from "./CanvasController";
 const INSTALLED_FLAG = "__glyftElementContextMenuInstalled";
 const MENU_ID = "glyft-element-context-menu";
 
-type MenuAction = {
+let activeController: CanvasController | null = null;
+
+interface ContextController extends CanvasController {
+  clipboard: FabricObject | null;
+  updateZundandUI: () => void;
+  cutSelected: () => Promise<void>;
+}
+
+interface MenuAction {
   label: string;
   shortcut?: string;
   danger?: boolean;
   disabled?: boolean;
   separatorBefore?: boolean;
   run: () => void | Promise<void>;
-};
-
-type RuntimePrototype = {
-  [INSTALLED_FLAG]?: boolean;
-  initCanvas: (this: CanvasController, ...args: unknown[]) => Promise<void>;
-  cutSelected?: (this: CanvasController) => Promise<void>;
-};
-
-let menuCleanup: (() => void) | null = null;
+}
 
 function removeMenu() {
-  menuCleanup?.();
-  menuCleanup = null;
   document.getElementById(MENU_ID)?.remove();
 }
 
-function getObjectAtPointer(controller: CanvasController, event: MouseEvent) {
+function isCanvasContextTarget(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest("#canvas-container"));
+}
+
+function findObjectAtPointer(controller: CanvasController, event: MouseEvent) {
   const canvas = controller.canvas;
   if (!canvas) return null;
 
@@ -39,7 +41,7 @@ function getObjectAtPointer(controller: CanvasController, event: MouseEvent) {
     return directTarget;
   }
 
-  const point = canvas.getScenePoint(event as never);
+  const scenePoint = canvas.getScenePoint(event as never);
 
   return (
     canvas
@@ -47,46 +49,38 @@ function getObjectAtPointer(controller: CanvasController, event: MouseEvent) {
       .slice()
       .reverse()
       .find((object) => {
-        if (
-          (object as FabricObject & { isArtboard?: boolean }).isArtboard ||
-          object.visible === false
-        ) {
+        if ((object as FabricObject & { isArtboard?: boolean }).isArtboard) {
           return false;
         }
-
-        return object.containsPoint(point);
+        if (object.visible === false) return false;
+        return object.containsPoint(scenePoint);
       }) ?? null
   );
 }
 
-function ensureContextSelection(controller: CanvasController, event: MouseEvent) {
+function selectContextTarget(controller: ContextController, event: MouseEvent) {
   const canvas = controller.canvas;
   if (!canvas) return;
 
-  const target = getObjectAtPointer(controller, event);
-  const activeObjects = canvas.getActiveObjects();
+  const target = findObjectAtPointer(controller, event);
+  if (!target) return;
 
-  if (target && !activeObjects.includes(target)) {
-    canvas.discardActiveObject();
-    canvas.setActiveObject(target);
-    canvas.requestRenderAll();
+  const currentSelection = canvas.getActiveObjects();
+  if (currentSelection.includes(target)) return;
 
-    (
-      controller as unknown as {
-        updateZundandUI: () => void;
-      }
-    ).updateZundandUI();
-  }
+  canvas.discardActiveObject();
+  canvas.setActiveObject(target);
+  canvas.requestRenderAll();
+  controller.updateZundandUI();
 }
 
-function createMenuNodes(action: MenuAction, close: () => void): HTMLElement[] {
-  const nodes: HTMLElement[] = [];
+function makeButton(action: MenuAction, close: () => void) {
+  const fragment = document.createDocumentFragment();
 
   if (action.separatorBefore) {
-    const separator = document.createElement("div");
-    separator.style.cssText =
-      "height:1px;background:#303030;margin:5px 6px";
-    nodes.push(separator);
+    const divider = document.createElement("div");
+    divider.style.cssText = "height:1px;background:#343434;margin:5px 6px";
+    fragment.appendChild(divider);
   }
 
   const button = document.createElement("button");
@@ -106,7 +100,7 @@ function createMenuNodes(action: MenuAction, close: () => void): HTMLElement[] {
     "font:500 12px Inter,system-ui,sans-serif",
     `color:${action.danger ? "#fb7185" : "#dedede"}`,
     "text-align:left",
-    `cursor:${action.disabled ? "not-allowed" : "default"}`,
+    `cursor:${action.disabled ? "not-allowed" : "pointer"}`,
     `opacity:${action.disabled ? "0.38" : "1"}`,
   ].join(";");
 
@@ -129,58 +123,40 @@ function createMenuNodes(action: MenuAction, close: () => void): HTMLElement[] {
         ? "rgba(244,63,94,.12)"
         : "#303030";
     });
-
     button.addEventListener("mouseleave", () => {
       button.style.background = "transparent";
     });
-
-    button.addEventListener("click", async (event) => {
-      event.stopPropagation();
+    button.addEventListener("click", async (clickEvent) => {
+      clickEvent.stopPropagation();
       await action.run();
       close();
     });
   }
 
-  nodes.push(button);
-  return nodes;
+  fragment.appendChild(button);
+  return fragment;
 }
 
-function showMenu(controller: CanvasController, event: MouseEvent) {
+function showMenu(controller: ContextController, event: MouseEvent) {
   removeMenu();
+  selectContextTarget(controller, event);
 
   const canvas = controller.canvas;
   if (!canvas) return;
 
-  ensureContextSelection(controller, event);
-
-  const activeObjects = canvas.getActiveObjects();
-  const activeObject = canvas.getActiveObject();
-  const hasSelection = activeObjects.length > 0;
+  const selected = canvas.getActiveObjects();
+  const active = canvas.getActiveObject();
+  const hasSelection = selected.length > 0;
   const hasClipboard = controller.hasClipboard();
-  const isGroup = activeObject?.type === "group";
-  const hasLocked = activeObjects.some((object) =>
+  const isGroup = active?.type === "group";
+  const hasLocked = selected.some((object) =>
     Boolean((object as FabricObject & { locked?: boolean }).locked),
   );
 
-  const close = () => removeMenu();
-
   const actions: MenuAction[] = hasSelection
     ? [
-        {
-          label: "Cut",
-          shortcut: "Ctrl X",
-          run: () =>
-            (
-              controller as CanvasController & {
-                cutSelected: () => Promise<void>;
-              }
-            ).cutSelected(),
-        },
-        {
-          label: "Copy",
-          shortcut: "Ctrl C",
-          run: () => controller.copySelected(),
-        },
+        { label: "Cut", shortcut: "Ctrl X", run: () => controller.cutSelected() },
+        { label: "Copy", shortcut: "Ctrl C", run: () => controller.copySelected() },
         {
           label: "Paste",
           shortcut: "Ctrl V",
@@ -197,20 +173,14 @@ function showMenu(controller: CanvasController, event: MouseEvent) {
           separatorBefore: true,
           run: () => controller.flipHorizontal(),
         },
-        {
-          label: "Flip vertical",
-          run: () => controller.flipVertical(),
-        },
+        { label: "Flip vertical", run: () => controller.flipVertical() },
         {
           label: "Bring to front",
           separatorBefore: true,
           run: () => controller.bringToFront(),
         },
-        {
-          label: "Send to back",
-          run: () => controller.sendToBack(),
-        },
-        activeObjects.length > 1
+        { label: "Send to back", run: () => controller.sendToBack() },
+        selected.length > 1
           ? {
               label: "Group selection",
               shortcut: "Ctrl G",
@@ -227,16 +197,13 @@ function showMenu(controller: CanvasController, event: MouseEvent) {
           ? {
               label: "Unlock",
               run: () => {
-                activeObjects.forEach((object) => {
+                selected.forEach((object) => {
                   const id = (object as FabricObject & { id?: string }).id;
                   if (id) controller.unlockSelected(id);
                 });
               },
             }
-          : {
-              label: "Lock",
-              run: () => controller.lockSelected(),
-            },
+          : { label: "Lock", run: () => controller.lockSelected() },
         {
           label: "Delete",
           shortcut: "Delete",
@@ -257,10 +224,9 @@ function showMenu(controller: CanvasController, event: MouseEvent) {
   const menu = document.createElement("div");
   menu.id = MENU_ID;
   menu.setAttribute("role", "menu");
-  menu.setAttribute("aria-label", "Element actions");
   menu.style.cssText = [
     "position:fixed",
-    "z-index:9999",
+    "z-index:99999",
     "width:224px",
     "padding:6px",
     "border:1px solid #363636",
@@ -271,79 +237,69 @@ function showMenu(controller: CanvasController, event: MouseEvent) {
     "user-select:none",
   ].join(";");
 
-  actions.forEach((action) => {
-    createMenuNodes(action, close).forEach((node) => menu.appendChild(node));
-  });
-
+  const close = () => removeMenu();
+  actions.forEach((action) => menu.appendChild(makeButton(action, close)));
   document.body.appendChild(menu);
 
-  const menuRect = menu.getBoundingClientRect();
-  const left = Math.min(event.clientX, window.innerWidth - menuRect.width - 8);
-  const top = Math.min(event.clientY, window.innerHeight - menuRect.height - 8);
-
-  menu.style.left = `${Math.max(8, left)}px`;
-  menu.style.top = `${Math.max(8, top)}px`;
-
-  const closeOnPointer = (pointerEvent: PointerEvent) => {
-    if (!menu.contains(pointerEvent.target as Node)) close();
-  };
-
-  const closeOnKey = (keyboardEvent: KeyboardEvent) => {
-    if (keyboardEvent.key === "Escape") close();
-  };
-
-  const closeOnBlur = () => close();
-
-  document.addEventListener("pointerdown", closeOnPointer, true);
-  document.addEventListener("keydown", closeOnKey);
-  window.addEventListener("blur", closeOnBlur);
-
-  menuCleanup = () => {
-    document.removeEventListener("pointerdown", closeOnPointer, true);
-    document.removeEventListener("keydown", closeOnKey);
-    window.removeEventListener("blur", closeOnBlur);
-  };
+  const bounds = menu.getBoundingClientRect();
+  menu.style.left = `${Math.max(
+    8,
+    Math.min(event.clientX, window.innerWidth - bounds.width - 8),
+  )}px`;
+  menu.style.top = `${Math.max(
+    8,
+    Math.min(event.clientY, window.innerHeight - bounds.height - 8),
+  )}px`;
 }
 
 export function installElementContextMenu() {
-  const prototype =
-    CanvasController.prototype as unknown as RuntimePrototype;
+  const prototype = CanvasController.prototype as unknown as {
+    [INSTALLED_FLAG]?: boolean;
+    updateZundandUI: (this: ContextController) => void;
+    cutSelected?: (this: ContextController) => Promise<void>;
+  };
 
   if (prototype[INSTALLED_FLAG]) return;
   prototype[INSTALLED_FLAG] = true;
 
   prototype.cutSelected = async function cutSelected() {
-    const canvas = this.canvas;
-    const activeObject = canvas?.getActiveObject();
-    if (!canvas || !activeObject) return;
+    const activeObject = this.canvas?.getActiveObject();
+    if (!this.canvas || !activeObject) return;
 
-    const cloned = await activeObject.clone();
-
-    (
-      this as unknown as {
-        clipboard: FabricObject | null;
-      }
-    ).clipboard = cloned;
-
+    this.clipboard = await activeObject.clone();
     this.deleteSelected();
   };
 
-  const originalInitCanvas = prototype.initCanvas;
-
-  prototype.initCanvas = async function patchedInitCanvas(...args: unknown[]) {
-    await originalInitCanvas.apply(this, args);
-
-    const upperCanvas = this.canvas?.upperCanvasEl;
-    if (!upperCanvas) return;
-
-    upperCanvas.addEventListener(
-      "contextmenu",
-      (contextEvent) => {
-        contextEvent.preventDefault();
-        contextEvent.stopPropagation();
-        showMenu(this, contextEvent);
-      },
-      true,
-    );
+  const originalUpdateUI = prototype.updateZundandUI;
+  prototype.updateZundandUI = function contextMenuControllerUpdate() {
+    activeController = this;
+    originalUpdateUI.call(this);
   };
+
+  document.addEventListener(
+    "contextmenu",
+    (event) => {
+      if (!isCanvasContextTarget(event.target) || !activeController?.canvas) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      showMenu(activeController as ContextController, event);
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      const menu = document.getElementById(MENU_ID);
+      if (menu && !menu.contains(event.target as Node)) removeMenu();
+    },
+    true,
+  );
+
+  window.addEventListener("blur", removeMenu);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") removeMenu();
+  });
 }
