@@ -1,6 +1,7 @@
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Circle as CircleIcon,
   Edit2,
@@ -15,7 +16,7 @@ import {
   Type,
   Unlock,
 } from "lucide-react";
-import { useEditorStore } from "../stores/editorStore";
+import { useEditorStore, type EditorLayer } from "../stores/editorStore";
 import {
   encodeLayerSelection,
   installLayerSelectionBridge,
@@ -32,6 +33,53 @@ interface LayersPanelProps {
   onSelectLayer?: (id: string) => void;
 }
 
+interface VisibleLayerRow {
+  layer: EditorLayer;
+  depth: number;
+  topLevelIndex: number;
+}
+
+function flattenVisibleLayers(
+  layers: EditorLayer[],
+  expandedIds: Set<string>,
+  depth = 0,
+): VisibleLayerRow[] {
+  const rows: VisibleLayerRow[] = [];
+
+  layers.forEach((layer, topLevelIndex) => {
+    rows.push({ layer, depth, topLevelIndex });
+
+    if (layer.children?.length && expandedIds.has(layer.id)) {
+      const childRows = flattenVisibleLayers(layer.children, expandedIds, depth + 1);
+      rows.push(
+        ...childRows.map((row) => ({
+          ...row,
+          topLevelIndex,
+        })),
+      );
+    }
+  });
+
+  return rows;
+}
+
+function countLayers(layers: EditorLayer[]): number {
+  return layers.reduce(
+    (count, layer) => count + 1 + countLayers(layer.children ?? []),
+    0,
+  );
+}
+
+function containsSelectedDescendant(
+  layer: EditorLayer,
+  selectedIds: Set<string>,
+): boolean {
+  return (layer.children ?? []).some(
+    (child) =>
+      selectedIds.has(child.id) || containsSelectedDescendant(child, selectedIds),
+  );
+}
+
 export function LayersPanel({
   onReorderLayer,
   onRenameLayer,
@@ -41,13 +89,24 @@ export function LayersPanel({
   onSelectLayer,
 }: LayersPanelProps) {
   const { layers, selectedObjectIds } = useEditorStore();
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [tempName, setTempName] = useState("");
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const selectionAnchorId = useRef<string | null>(null);
 
-  const selectedIds = new Set(selectedObjectIds);
+  const selectedIds = useMemo(
+    () => new Set(selectedObjectIds),
+    [selectedObjectIds],
+  );
+
+  const visibleRows = useMemo(
+    () => flattenVisibleLayers(layers, expandedIds),
+    [layers, expandedIds],
+  );
+
+  const totalLayerCount = useMemo(() => countLayers(layers), [layers]);
 
   const getLayerIcon = (type: string) => {
     switch (type.toLowerCase()) {
@@ -72,23 +131,34 @@ export function LayersPanel({
     onSelectLayer?.(encodeLayerSelection(ids));
   };
 
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const handleLayerClick = (
     event: React.MouseEvent<HTMLDivElement>,
     id: string,
-    index: number,
+    visibleIndex: number,
   ) => {
     const toggleSelection = event.metaKey || event.ctrlKey;
 
     if (event.shiftKey) {
       const anchorIndex = selectionAnchorId.current
-        ? layers.findIndex((layer) => layer.id === selectionAnchorId.current)
+        ? visibleRows.findIndex((row) => row.layer.id === selectionAnchorId.current)
         : -1;
 
-      const rangeStart = anchorIndex === -1 ? index : Math.min(anchorIndex, index);
-      const rangeEnd = anchorIndex === -1 ? index : Math.max(anchorIndex, index);
-      const rangeIds = layers
+      const rangeStart =
+        anchorIndex === -1 ? visibleIndex : Math.min(anchorIndex, visibleIndex);
+      const rangeEnd =
+        anchorIndex === -1 ? visibleIndex : Math.max(anchorIndex, visibleIndex);
+      const rangeIds = visibleRows
         .slice(rangeStart, rangeEnd + 1)
-        .map((layer) => layer.id);
+        .map((row) => row.layer.id);
 
       const nextIds = toggleSelection
         ? Array.from(new Set([...selectedObjectIds, ...rangeIds]))
@@ -167,7 +237,7 @@ export function LayersPanel({
         <span className="ml-auto rounded border border-[#333] bg-[#1a1a1a] px-1.5 py-0.5 font-mono text-[9px] text-[#707070]">
           {selectedObjectIds.length > 1
             ? `${selectedObjectIds.length} selected`
-            : `${layers.length} total`}
+            : `${totalLayerCount} total`}
         </span>
       </div>
 
@@ -187,37 +257,89 @@ export function LayersPanel({
             </p>
           </div>
         ) : (
-          layers.map((layer, index) => {
+          visibleRows.map(({ layer, depth, topLevelIndex }, visibleIndex) => {
             const isSelected = selectedIds.has(layer.id);
+            const hasSelectedChild = containsSelectedDescendant(layer, selectedIds);
             const isAnchor = selectionAnchorId.current === layer.id;
+            const hasChildren = Boolean(layer.children?.length);
+            const isExpanded = expandedIds.has(layer.id);
+            const isTopLevel = depth === 0;
 
             return (
               <div
                 key={layer.id}
                 id={`layer-row-${layer.id}`}
-                draggable
-                onDragStart={(event) => handleDragStart(event, index)}
-                onDragOver={(event) => handleDragOver(event, index)}
-                onDrop={(event) => handleDrop(event, index)}
-                onDragEnd={handleDragEnd}
-                onClick={(event) => handleLayerClick(event, layer.id, index)}
+                draggable={isTopLevel}
+                onDragStart={
+                  isTopLevel
+                    ? (event) => handleDragStart(event, topLevelIndex)
+                    : undefined
+                }
+                onDragOver={
+                  isTopLevel
+                    ? (event) => handleDragOver(event, topLevelIndex)
+                    : undefined
+                }
+                onDrop={
+                  isTopLevel
+                    ? (event) => handleDrop(event, topLevelIndex)
+                    : undefined
+                }
+                onDragEnd={isTopLevel ? handleDragEnd : undefined}
+                onClick={(event) =>
+                  handleLayerClick(event, layer.id, visibleIndex)
+                }
                 className={[
-                  "group flex cursor-grab items-center gap-1 rounded border px-2 py-1.5 transition-colors active:cursor-grabbing",
+                  "group flex items-center gap-1 rounded border py-1.5 pr-2 transition-colors",
+                  isTopLevel
+                    ? "cursor-grab active:cursor-grabbing"
+                    : "cursor-default",
                   isSelected
                     ? "border-blue-500/25 bg-blue-500/10 text-white"
-                    : "border-transparent text-[#888] hover:bg-[#151515] hover:text-white",
-                  isAnchor && isSelected ? "ring-1 ring-inset ring-blue-400/35" : "",
-                  draggedIndex === index ? "bg-[#222] opacity-30" : "",
-                  dragOverIndex === index
+                    : hasSelectedChild
+                      ? "border-blue-500/10 bg-blue-500/5 text-[#d0d0d0]"
+                      : "border-transparent text-[#888] hover:bg-[#151515] hover:text-white",
+                  isAnchor && isSelected
+                    ? "ring-1 ring-inset ring-blue-400/35"
+                    : "",
+                  isTopLevel && draggedIndex === topLevelIndex
+                    ? "bg-[#222] opacity-30"
+                    : "",
+                  isTopLevel && dragOverIndex === topLevelIndex
                     ? "border-t-2 border-t-white/50 bg-[#1a1a1a]"
                     : "",
                 ].join(" ")}
+                style={{ paddingLeft: `${6 + depth * 16}px` }}
               >
-                <div className="mr-0.5 cursor-grab text-[#444] group-hover:text-[#707070] active:cursor-grabbing">
-                  <GripVertical size={11} />
-                </div>
+                {isTopLevel ? (
+                  <div className="mr-0.5 cursor-grab text-[#444] group-hover:text-[#707070] active:cursor-grabbing">
+                    <GripVertical size={11} />
+                  </div>
+                ) : (
+                  <div className="w-[15px] shrink-0" />
+                )}
 
-                <div className="flex h-5 w-5 items-center justify-center rounded border border-[#333]/30 bg-[#141414]">
+                {hasChildren ? (
+                  <button
+                    type="button"
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#707070] hover:bg-[#222] hover:text-white"
+                    title={isExpanded ? "Collapse group" : "Expand group"}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleExpanded(layer.id);
+                    }}
+                  >
+                    {isExpanded ? (
+                      <ChevronDown size={12} />
+                    ) : (
+                      <ChevronRight size={12} />
+                    )}
+                  </button>
+                ) : (
+                  <div className="w-5 shrink-0" />
+                )}
+
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-[#333]/30 bg-[#141414]">
                   {getLayerIcon(layer.type)}
                 </div>
 
@@ -265,32 +387,39 @@ export function LayersPanel({
                   className="flex items-center gap-0.5 opacity-40 transition-opacity group-hover:opacity-100"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <button
-                    type="button"
-                    id={`layer-up-${layer.id}`}
-                    onClick={() => onReorderLayer(layer.id, "up")}
-                    disabled={index === 0}
-                    className={`rounded p-1 text-[#707070] hover:bg-[#1a1a1a] hover:text-white ${
-                      index === 0 ? "cursor-not-allowed opacity-20" : "cursor-pointer"
-                    }`}
-                    title="Move layer up"
-                  >
-                    <ChevronUp size={11} />
-                  </button>
-                  <button
-                    type="button"
-                    id={`layer-down-${layer.id}`}
-                    onClick={() => onReorderLayer(layer.id, "down")}
-                    disabled={index === layers.length - 1}
-                    className={`rounded p-1 text-[#707070] hover:bg-[#1a1a1a] hover:text-white ${
-                      index === layers.length - 1
-                        ? "cursor-not-allowed opacity-20"
-                        : "cursor-pointer"
-                    }`}
-                    title="Move layer down"
-                  >
-                    <ChevronDown size={11} />
-                  </button>
+                  {isTopLevel && (
+                    <>
+                      <button
+                        type="button"
+                        id={`layer-up-${layer.id}`}
+                        onClick={() => onReorderLayer(layer.id, "up")}
+                        disabled={topLevelIndex === 0}
+                        className={`rounded p-1 text-[#707070] hover:bg-[#1a1a1a] hover:text-white ${
+                          topLevelIndex === 0
+                            ? "cursor-not-allowed opacity-20"
+                            : "cursor-pointer"
+                        }`}
+                        title="Move layer up"
+                      >
+                        <ChevronUp size={11} />
+                      </button>
+                      <button
+                        type="button"
+                        id={`layer-down-${layer.id}`}
+                        onClick={() => onReorderLayer(layer.id, "down")}
+                        disabled={topLevelIndex === layers.length - 1}
+                        className={`rounded p-1 text-[#707070] hover:bg-[#1a1a1a] hover:text-white ${
+                          topLevelIndex === layers.length - 1
+                            ? "cursor-not-allowed opacity-20"
+                            : "cursor-pointer"
+                        }`}
+                        title="Move layer down"
+                      >
+                        <ChevronDown size={11} />
+                      </button>
+                    </>
+                  )}
+
                   <button
                     type="button"
                     id={`layer-vis-${layer.id}`}
