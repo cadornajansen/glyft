@@ -1,0 +1,112 @@
+#properties-sidebar {
+  --property-control-height: 30px;
+}
+
+#properties-sidebar > div:last-child {
+  padding: 12px;
+}
+
+#properties-sidebar > div:last-child > div {
+  gap: 16px;
+}
+
+#properties-sidebar div:has(> div #prop-position-x):has(#prop-angle) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+  padding-bottom: 12px;
+}
+
+#properties-sidebar div:has(> div #prop-position-x):has(#prop-angle) > div:first-child {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+}
+
+#properties-sidebar div:has(> div #prop-position-x):has(#prop-angle) > div:first-child span:last-child {
+  display: none;
+}
+
+#properties-sidebar div:has(> div #prop-position-x):has(#prop-angle) > div:has(#prop-position-x),
+#properties-sidebar div:has(> div #prop-position-x):has(#prop-angle) > div:has(#prop-width) {
+  grid-column: 1 / -1;
+  gap: 8px;
+}
+
+#properties-sidebar div:has(> div #prop-position-x):has(#prop-angle) > div:has(> #prop-angle) {
+  grid-column: 1 / 2;
+  gap: 4px;
+}
+
+#properties-sidebar div:has(> #prop-position-x),
+#properties-sidebar div:has(> #prop-position-y),
+#properties-sidebar div:has(> #prop-width),
+#properties-sidebar div:has(> #prop-height) {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+#properties-sidebar div:has(> #prop-position-x) label,
+#properties-sidebar div:has(> #prop-position-y) label,
+#properties-sidebar div:has(> #prop-width) label,
+#properties-sidebar div:has(> #prop-height) label,
+#properties-sidebar div:has(> #prop-angle) > label {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0;
+  color: #707070;
+}
+
+#properties-sidebar div:has(> #prop-width) label,
+#properties-sidebar div:has(> #prop-height) label {
+  font-size: 0;
+}
+
+#properties-sidebar div:has(> #prop-width) label::after {
+  content: "W";
+  font-size: 10px;
+}
+
+#properties-sidebar div:has(> #prop-height) label::after {
+  content: "H";
+  font-size: 10px;
+}
+
+#properties-sidebar #prop-position-x,
+#properties-sidebar #prop-position-y,
+#properties-sidebar #prop-width,
+#properties-sidebar #prop-height,
+#properties-sidebar #prop-angle {
+  height: var(--property-control-height);
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-color: #2a2a2a;
+  background: #151515;
+}
+
+#properties-sidebar div:has(> #prop-angle) {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+#properties-sidebar div:has(> #prop-angle) > label {
+  font-size: 0;
+}
+
+#properties-sidebar div:has(> #prop-angle) > label::after {
+  content: "°";
+  font-size: 12px;
+}
+
+#properties-sidebar input[type="number"]::-webkit-inner-spin-button,
+#properties-sidebar input[type="number"]::-webkit-outer-spin-button {
+  opacity: 0;
+}
+
+#properties-sidebar input[type="number"]:hover::-webkit-inner-spin-button,
+#properties-sidebar input[type="number"]:focus::-webkit-inner-spin-button {
+  opacity: 1;
+}
