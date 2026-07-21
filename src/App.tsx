@@ -5,9 +5,12 @@ import { PropertiesPanel } from './components/PropertiesPanel';
 import { LayersPanel } from './components/LayersPanel';
 import { StatusBar } from './components/StatusBar';
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { DocumentRecoveryDialog } from "./components/DocumentRecoveryDialog";
 import { CanvasController } from "./canvas/CanvasController";
 import { useEditorStore, type ActiveProperties } from "./stores/editorStore";
 import { getAllProjects, saveProject, deleteProject, db } from "./db/projectDb";
+import { saveProjectCanvasState } from "./db/saveProjectCanvasState";
+import { updateProjectDimensions } from "./db/updateProjectMetadata";
 import { type Project } from "./types";
 import {
   createDefaultOgTemplateProject,
@@ -36,6 +39,8 @@ export default function App() {
     setRightSidebarOpen,
     selectedObjectCount,
     activeProperties,
+    canvasLoadError,
+    setCanvasLoadError,
   } = useEditorStore();
 
   const [isSaving, setIsSaving] = useState(false);
@@ -125,6 +130,8 @@ export default function App() {
 
   const loadProjectIntoCanvas = async (project: Project) => {
     disposeCurrentController();
+    // Clear any stale document error from the previous project
+    useEditorStore.getState().setCanvasLoadError(null);
 
     const container = document.getElementById("canvas-container");
     const width = container?.clientWidth || 900;
@@ -151,47 +158,53 @@ export default function App() {
             return;
           }
 
-          const storeState = useEditorStore.getState();
-          if (storeState.currentProjectId !== projectId) {
+          const storeStateBefore = useEditorStore.getState();
+          if (
+            storeStateBefore.currentProjectId !== projectId ||
+            !storeStateBefore.currentProject ||
+            storeStateBefore.currentProject.id !== projectId
+          ) {
             setIsSaving(false);
             return;
           }
 
-          const currentProj = storeState.currentProject;
-          if (!currentProj || currentProj.id !== projectId) {
+          // Do not write canvas state over a corrupted document the user hasn't resolved yet
+          if (storeStateBefore.canvasLoadError) {
             setIsSaving(false);
             return;
           }
 
-          const existingProject = await db.projects.get(projectId);
-          if (!existingProject) {
-            setIsSaving(false);
-            return;
-          }
-
-          const updatedProj = {
-            ...currentProj,
-            thumbnail,
+          const updatedProj = await saveProjectCanvasState(
+            projectId,
             canvasData,
-            updatedAt: Date.now(),
-          };
+            thumbnail,
+            Date.now(),
+          );
 
-          await db.transaction("rw", db.projects, async () => {
-            const latestProject = await db.projects.get(projectId);
-            if (!latestProject) return;
-            await db.projects.put(updatedProj);
-          });
+          if (!updatedProj) {
+            setIsSaving(false);
+            return;
+          }
 
           if (generation !== controllerGenerationRef.current) {
             setIsSaving(false);
             return;
           }
 
-          if (useEditorStore.getState().currentProjectId === projectId) {
+          const storeStateAfter = useEditorStore.getState();
+          if (storeStateAfter.currentProjectId === projectId) {
             setCurrentProject(updatedProj);
           }
+          // Signal sidebar to re-query the project list so thumbnails/timestamps refresh
+          useEditorStore.getState().notifyAutosaved(Date.now());
           setIsSaving(false);
         }, 1200); // Debounce database saves
+      },
+      (err) => {
+        // onLoadError: canvas document failed to parse
+        useEditorStore.getState().setCanvasLoadError(
+          err instanceof Error ? err.message : "Unknown document error"
+        );
       },
     );
 
@@ -512,18 +525,36 @@ export default function App() {
 
   const handleAddSVG = (svg: string) =>
     canvasControllerRef.current?.addSVG(svg);
-
   const handleSetProperty = (key: keyof ActiveProperties, value: any) => {
     canvasControllerRef.current?.setProperty(key, value);
   };
 
-  const handleSetArtboardProperty = (
+  const handleSetArtboardProperty = async (
     key: "width" | "height" | "fill",
     value: any,
   ) => {
-    canvasControllerRef.current?.setArtboardProperty(key, value);
-  };
+    if (!canvasControllerRef.current) return;
 
+    if (key === "width" || key === "height") {
+      const store = useEditorStore.getState();
+      const currentProj = store.currentProject;
+      if (currentProj) {
+        const newWidth = key === "width" ? (parseInt(value) || 100) : currentProj.width;
+        const newHeight = key === "height" ? (parseInt(value) || 100) : currentProj.height;
+
+        const updated = await updateProjectDimensions(
+          currentProj.id,
+          newWidth,
+          newHeight,
+        );
+        if (updated && store.currentProjectId === currentProj.id) {
+          store.setCurrentProject(updated);
+        }
+      }
+    }
+
+    canvasControllerRef.current.setArtboardProperty(key, value);
+  };
   const handleExport = async (format: "png" | "jpeg" | "svg" | "webp") => {
     if (!canvasControllerRef.current) return;
     const url = await canvasControllerRef.current.exportToImage(format);
@@ -576,6 +607,29 @@ export default function App() {
     isResizingRef.current = false;
     document.removeEventListener("mousemove", handleResizeMouseMove);
     document.removeEventListener("mouseup", handleResizeMouseUp);
+  };
+
+  // 7. Document recovery handlers
+  const handleRecoveryReplaceWithBlank = async () => {
+    if (!canvasControllerRef.current) return;
+    // Clear the error first so the autosave guard (canvasLoadError check) lets this write through,
+    // then persist the blank canvas state.
+    setCanvasLoadError(null);
+    canvasControllerRef.current.saveToHistory();
+    await canvasControllerRef.current.triggerAutosave();
+  };
+
+  const handleRecoveryDelete = async () => {
+    if (currentProjectId) {
+      await handleDeleteProject(currentProjectId);
+    }
+    // Clear error after deletion so dialog only closes on success
+    setCanvasLoadError(null);
+  };
+
+  const handleRecoveryGoBack = () => {
+    setCanvasLoadError(null);
+    handleResetToProjects();
   };
 
   const appShell = (
@@ -840,6 +894,17 @@ export default function App() {
 
       {/* Bottom Status bar */}
       <StatusBar isSaving={isSaving} />
+
+      {/* Document recovery overlay */}
+      {canvasLoadError && currentProject && (
+        <DocumentRecoveryDialog
+          projectName={currentProject.name}
+          errorMessage={canvasLoadError}
+          onReplaceWithBlank={handleRecoveryReplaceWithBlank}
+          onDeleteProject={handleRecoveryDelete}
+          onGoBack={handleRecoveryGoBack}
+        />
+      )}
     </div>
   );
 

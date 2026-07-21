@@ -1,0 +1,245 @@
+#left-sidebar {
+  width: 17.5rem !important;
+  background: #0b0b0c !important;
+}
+
+#left-sidebar > div:first-child {
+  padding: 6px !important;
+  gap: 4px !important;
+}
+
+#left-sidebar > div:first-child button {
+  min-height: 30px;
+}
+
+#left-sidebar > div:nth-child(2) {
+  padding: 10px !important;
+}
+
+#left-sidebar [id="btn-new-project"] {
+  height: 28px !important;
+  padding: 0 10px !important;
+  border-radius: 6px !important;
+  font-size: 10px !important;
+  white-space: nowrap;
+}
+
+/* Template import now lives beside the main Export button. */
+#left-sidebar div:has(> #btn-import-template) {
+  display: none !important;
+}
+
+#glyft-template-project-controls {
+  gap: 4px !important;
+}
+
+#glyft-template-project-controls button {
+  height: 28px !important;
+  padding: 0 8px !important;
+  border-color: #303033 !important;
+  background: #151516 !important;
+  color: #9a9a9f !important;
+  font-size: 9px !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap;
+}
+
+#glyft-template-project-controls button:hover {
+  background: #202023 !important;
+  color: #f4f4f5 !important;
+}
+
+#left-sidebar [id^="project-card-"] {
+  display: grid !important;
+  grid-template-columns: 66px minmax(0, 1fr) !important;
+  grid-template-rows: auto auto !important;
+  column-gap: 10px !important;
+  row-gap: 5px !important;
+  min-height: 68px;
+  padding: 8px !important;
+  border-radius: 8px !important;
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#left-sidebar [id^="project-card-"]:hover {
+  border-color: #29292d !important;
+  background: #131315 !important;
+}
+
+#left-sidebar [id^="project-card-"][class*="border-white"] {
+  border-color: #3a3a40 !important;
+  background: #18181b !important;
+  box-shadow: inset 2px 0 0 #f4f4f5 !important;
+}
+
+#left-sidebar [id^="project-card-"] > div:first-child {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  align-self: end;
+}
+
+#left-sidebar [id^="project-card-"] > div:nth-child(2) {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  margin-top: 0 !important;
+  align-self: start;
+}
+
+#left-sidebar [id^="project-card-"] > div:has(> img) {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 66px !important;
+  height: 50px !important;
+  margin-top: 0 !important;
+  align-self: center;
+  border-radius: 6px !important;
+  border-color: #2c2c30 !important;
+  background: #101012 !important;
+  overflow: hidden;
+}
+
+#left-sidebar [id^="project-card-"] > div:has(> img) img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  opacity: 0.72 !important;
+}
+
+#left-sidebar [id^="project-card-"]:hover > div:has(> img) img,
+#left-sidebar [id^="project-card-"][class*="border-white"] > div:has(> img) img {
+  opacity: 1 !important;
+}
+
+#left-sidebar [id^="project-card-"]:not(:has(img))::before {
+  content: "";
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 66px;
+  height: 50px;
+  align-self: center;
+  border: 1px solid #2c2c30;
+  border-radius: 6px;
+  background-color: #111114;
+  background-image:
+    linear-gradient(135deg, transparent 46%, #33333a 47%, #33333a 53%, transparent 54%),
+    radial-gradient(circle at 68% 30%, #3a3a42 0 4px, transparent 5px),
+    linear-gradient(145deg, transparent 52%, #24242a 53% 68%, transparent 69%);
+  opacity: 0.85;
+}
+
+#left-sidebar [id^="project-card-"] span {
+  line-height: 1.25;
+}
+
+#left-sidebar [id^="project-card-"] > div:first-child > span {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding-right: 48px !important;
+}
+
+#left-sidebar [id^="project-card-"] > div:nth-child(2) {
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  font-size: 9px !important;
+  color: #77777d !important;
+}
+
+#left-sidebar [id^="project-card-"] > div:nth-child(2) span:last-child {
+  color: #57575d !important;
+}
+
+#left-sidebar [id^="project-card-"] > div:first-child > div {
+  top: 4px !important;
+  right: 4px !important;
+  gap: 0 !important;
+  padding: 2px !important;
+  border-color: #2d2d31 !important;
+  border-radius: 6px !important;
+  background: #111113 !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3) !important;
+}
+
+#left-sidebar [id^="project-card-"] > div:first-child > div button {
+  width: 24px;
+  height: 24px;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#left-sidebar [id^="btn-rename-"] {
+  font-size: 0 !important;
+}
+
+#left-sidebar [id^="btn-rename-"]::after {
+  content: "R";
+  font: 700 9px ui-monospace, SFMono-Regular, monospace;
+}
+
+#left-sidebar [id^="project-card-"] > div:first-child input {
+  width: 100% !important;
+  height: 26px;
+  padding: 0 7px !important;
+  border-radius: 5px !important;
+}
+
+#left-sidebar [id^="project-card-"] > div:first-child:only-child,
+#left-sidebar [id^="project-card-"] > div:first-child:last-child {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+}
+
+#left-sidebar [id^="project-card-"] > div:first-child:last-child > div {
+  position: static !important;
+  opacity: 1 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+#left-sidebar .space-y-4 {
+  row-gap: 12px !important;
+}
+
+#left-sidebar .space-y-2 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 4px !important;
+}
+
+#left-sidebar .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 18px !important;
+}
+
+#left-sidebar [id^="preset-"] {
+  min-height: 52px;
+  padding: 7px 8px !important;
+  border-radius: 7px !important;
+}
+
+#left-sidebar [id^="preset-"] > div:first-child {
+  padding: 7px !important;
+  margin-right: 9px !important;
+}
+
+#glyft-ready-made-template-section {
+  gap: 7px !important;
+}
+
+#glyft-ready-made-template-section button {
+  border-radius: 7px !important;
+}
+
+@media (max-width: 1200px) {
+  #left-sidebar {
+    width: 16.5rem !important;
+  }
+
+  #glyft-template-project-controls button {
+    padding: 0 6px !important;
+  }
+}

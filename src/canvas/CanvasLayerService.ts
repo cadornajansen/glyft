@@ -1,4 +1,8 @@
-import type { Canvas as FabricCanvas, FabricObject } from "fabric";
+import {
+  Group,
+  type Canvas as FabricCanvas,
+  type FabricObject,
+} from "fabric";
 
 export interface CanvasLayer {
   id: string;
@@ -6,6 +10,8 @@ export interface CanvasLayer {
   type: string;
   visible: boolean;
   locked: boolean;
+  parentId?: string;
+  children?: CanvasLayer[];
 }
 
 export interface CanvasLayerServiceOptions {
@@ -24,19 +30,16 @@ export class CanvasLayerService {
     return this.getDocumentObjects()
       .slice()
       .reverse()
-      .map((object) => ({
-        id: String((object as any).id ?? ""),
-        name: String((object as any).name ?? object.type ?? "Object"),
-        type: String(object.type ?? "object"),
-        visible: object.visible !== false,
-        locked: Boolean((object as any).locked),
-      }));
+      .map((object) => this.toLayer(object));
   }
 
   public findById(id: string): FabricObject | undefined {
-    return this.getDocumentObjects().find(
-      (object) => String((object as any).id ?? "") === id,
-    );
+    for (const object of this.getDocumentObjects()) {
+      const found = this.findInObject(object, id);
+      if (found) return found;
+    }
+
+    return undefined;
   }
 
   public setVisibility(id: string, visible: boolean): boolean {
@@ -59,7 +62,8 @@ export class CanvasLayerService {
       evented: !locked,
     });
 
-    if (locked && this.options.canvas.getActiveObject() === object) {
+    const activeObjects = this.options.canvas.getActiveObjects();
+    if (locked && activeObjects.includes(object)) {
       this.options.canvas.discardActiveObject();
     }
 
@@ -80,7 +84,7 @@ export class CanvasLayerService {
 
   public moveToIndex(id: string, layerIndex: number): boolean {
     const object = this.findById(id);
-    if (!object) return false;
+    if (!object || object.group) return false;
 
     const objects = this.getDocumentObjects();
     const clampedLayerIndex = Math.max(
@@ -93,6 +97,52 @@ export class CanvasLayerService {
     this.options.canvas.moveObjectTo(object, canvasIndex + 1);
     this.options.canvas.requestRenderAll();
     return true;
+  }
+
+  private toLayer(object: FabricObject, parentId?: string): CanvasLayer {
+    const id = this.ensureObjectId(object);
+    const layer: CanvasLayer = {
+      id,
+      name: String((object as any).name ?? object.type ?? "Object"),
+      type: String(object.type ?? "object"),
+      visible: object.visible !== false,
+      locked: Boolean((object as any).locked),
+      parentId,
+    };
+
+    if (object instanceof Group) {
+      const children = object
+        .getObjects()
+        .slice()
+        .reverse()
+        .map((child) => this.toLayer(child, id));
+
+      if (children.length > 0) layer.children = children;
+    }
+
+    return layer;
+  }
+
+  private findInObject(object: FabricObject, id: string): FabricObject | undefined {
+    if (String((object as any).id ?? "") === id) return object;
+
+    if (object instanceof Group) {
+      for (const child of object.getObjects()) {
+        const found = this.findInObject(child, id);
+        if (found) return found;
+      }
+    }
+
+    return undefined;
+  }
+
+  private ensureObjectId(object: FabricObject): string {
+    const existingId = String((object as any).id ?? "");
+    if (existingId) return existingId;
+
+    const id = crypto.randomUUID();
+    (object as any).id = id;
+    return id;
   }
 
   private getDocumentObjects(): FabricObject[] {
