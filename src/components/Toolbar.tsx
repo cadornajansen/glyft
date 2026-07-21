@@ -100,7 +100,7 @@ export function Toolbar({
       {/* Title & Preset Indicator / Path */}
       <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <span className="text-white font-semibold text-sm tracking-tight">Glyftgit status</span>
+            <span className="text-white font-semibold text-sm tracking-tight">Glyft</span>
           </div>
         
         {currentProject ? (
