@@ -55,6 +55,8 @@ Use this file as the first source of context before modifying this repository. K
   - Editor UI state
 - `src/db/projectDb.ts`
   - Dexie project persistence
+- `src/db/saveProjectCanvasState.ts`
+  - Transaction-safe helper to persist project canvas data and thumbnail without overwriting newer metadata
 - `src/templates/portableTemplate.ts`
   - Portable `.glyft` serialization, validation, asset bundling, and import
 - `src/templates/catalog.ts`
@@ -79,6 +81,7 @@ Use this file as the first source of context before modifying this repository. K
 - Ready-made template catalog integration
 - Compact sidebar project rows with side thumbnails and placeholder graphics
 - GitHub Actions CI for lint/typecheck and production build
+- Vitest unit test suite verifying database preservation (rename, dimensions, future metadata, missing projects, concurrency)
 
 ## Template workflow
 
@@ -103,3 +106,6 @@ Use this file as the first source of context before modifying this repository. K
 - `.glyft` import is now positioned directly beside the main Export button.
 - Sidebar project cards show a generated placeholder graphic when no thumbnail exists.
 - Latest implementation commits before this context update: `84e96555750298b57577b60d13c2da6b51fd8871` and `3a052523a116aa469d49eb726f80379559cd841e`.
+- Vitest test framework added as a devDependency with global `fake-indexeddb` isolation for persistence testing (`npm run test`).
+- Autosave metadata integrity issue (Issue #5) fixed by extracting transaction-safe persistence helper `src/db/saveProjectCanvasState.ts` and updating `src/App.tsx` with double state checks.
+- Remaining testing gaps (Issue #11): broader coverage for serializer, history, export, and browser-based end-to-end regression tests.
