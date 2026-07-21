@@ -24,6 +24,11 @@
   white-space: nowrap;
 }
 
+/* Template import now lives beside the main Export button. */
+#left-sidebar div:has(> #btn-import-template) {
+  display: none !important;
+}
+
 #glyft-template-project-controls {
   gap: 4px !important;
 }
@@ -107,6 +112,23 @@
 #left-sidebar [id^="project-card-"]:hover > div:has(> img) img,
 #left-sidebar [id^="project-card-"][class*="border-white"] > div:has(> img) img {
   opacity: 1 !important;
+}
+
+#left-sidebar [id^="project-card-"]:not(:has(img))::before {
+  content: "";
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 66px;
+  height: 50px;
+  align-self: center;
+  border: 1px solid #2c2c30;
+  border-radius: 6px;
+  background-color: #111114;
+  background-image:
+    linear-gradient(135deg, transparent 46%, #33333a 47%, #33333a 53%, transparent 54%),
+    radial-gradient(circle at 68% 30%, #3a3a42 0 4px, transparent 5px),
+    linear-gradient(145deg, transparent 52%, #24242a 53% 68%, transparent 69%);
+  opacity: 0.85;
 }
 
 #left-sidebar [id^="project-card-"] span {
