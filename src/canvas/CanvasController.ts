@@ -1,5 +1,6 @@
 import {
   Canvas as FabricCanvas,
+  StaticCanvas,
   Rect,
   Circle,
   Line,
@@ -68,11 +69,21 @@ export class CanvasController {
   }
 
   private initCanvas(canvasId: string, width: number, height: number, project: Project) {
-    // 1. Setup Canvas
+    // 1. Setup Figma-style Selection Controls
+    FabricObject.prototype.borderColor = '#3b82f6';
+    FabricObject.prototype.cornerColor = '#ffffff';
+    FabricObject.prototype.cornerStrokeColor = '#3b82f6';
+    FabricObject.prototype.cornerStyle = 'circle';
+    FabricObject.prototype.cornerSize = 8;
+    FabricObject.prototype.transparentCorners = false;
+    FabricObject.prototype.borderScaleFactor = 1.2;
+    FabricObject.prototype.padding = 6;
+
+    // 2. Setup Canvas
     this.canvas = new FabricCanvas(canvasId, {
       width,
       height,
-      backgroundColor: '#1e1e24', // dark slate workspace color
+      backgroundColor: '#0e0e10', // gorgeous dark sleek workspace color
       selectionColor: 'rgba(59, 130, 246, 0.15)',
       selectionBorderColor: '#3b82f6',
       selectionLineWidth: 1.5,
@@ -244,16 +255,16 @@ export class CanvasController {
         this.canvas!.selection = false;
         this.canvas!.discardActiveObject();
         this.canvas!.renderAll();
-        this.lastPosX = (opt as any).pointer ? (opt as any).pointer.x : (evt.clientX || (evt.touches && evt.touches[0]?.clientX) || 0);
-        this.lastPosY = (opt as any).pointer ? (opt as any).pointer.y : (evt.clientY || (evt.touches && evt.touches[0]?.clientY) || 0);
+        this.lastPosX = evt.clientX || (evt.touches && evt.touches[0]?.clientX) || 0;
+        this.lastPosY = evt.clientY || (evt.touches && evt.touches[0]?.clientY) || 0;
       }
     });
 
     this.canvas.on('mouse:move', (opt) => {
       const e = opt.e as any;
       if (this.isDragging && this.canvas) {
-        const clientX = (opt as any).pointer ? (opt as any).pointer.x : (e.clientX || (e.touches && e.touches[0]?.clientX) || 0);
-        const clientY = (opt as any).pointer ? (opt as any).pointer.y : (e.clientY || (e.touches && e.touches[0]?.clientY) || 0);
+        const clientX = e.clientX || (e.touches && e.touches[0]?.clientX) || 0;
+        const clientY = e.clientY || (e.touches && e.touches[0]?.clientY) || 0;
 
         const vpt = this.canvas.viewportTransform 
           ? [...this.canvas.viewportTransform] as unknown as TMat2D 
@@ -395,6 +406,14 @@ export class CanvasController {
         shadowBlur: shadowObj?.blur || 0,
         shadowOffsetX: shadowObj?.offsetX || 0,
         shadowOffsetY: shadowObj?.offsetY || 0,
+        // Position, Size, and Rotation
+        left: Math.round(obj.left || 0),
+        top: Math.round(obj.top || 0),
+        width: Math.round((obj.width || 0) * (obj.scaleX || 1)),
+        height: Math.round((obj.height || 0) * (obj.scaleY || 1)),
+        angle: Math.round(obj.angle || 0),
+        flipX: !!obj.flipX,
+        flipY: !!obj.flipY,
         // Text specific
         fontFamily: (obj as IText).fontFamily || 'Inter',
         fontSize: (obj as IText).fontSize || 24,
@@ -893,10 +912,29 @@ export class CanvasController {
         if (key === 'shadowOffsetY') shadowOptions.offsetY = parseFloat(value) || 0;
 
         obj.set({ shadow: new Shadow(shadowOptions) });
+      } else if (key === 'width') {
+        const val = parseFloat(value) || 0;
+        if (obj.type === 'circle') {
+          const radius = val / 2;
+          obj.set({ radius, width: val, height: val, scaleX: 1, scaleY: 1 });
+        } else {
+          obj.set({ width: val, scaleX: 1 });
+        }
+      } else if (key === 'height') {
+        const val = parseFloat(value) || 0;
+        if (obj.type === 'circle') {
+          const radius = val / 2;
+          obj.set({ radius, width: val, height: val, scaleX: 1, scaleY: 1 });
+        } else {
+          obj.set({ height: val, scaleY: 1 });
+        }
       } else {
         // Standard property
         obj.set({ [key]: value });
       }
+
+      // Sync bounding box coordinates for Figma selection highlights
+      obj.setCoords();
     });
 
     this.canvas.renderAll();
@@ -926,13 +964,14 @@ export class CanvasController {
       this.artboard.set({ fill: value });
     }
 
-    // Keep it centered or re-center it if resized
-    const w = this.canvas.getWidth();
-    const h = this.canvas.getHeight();
+    // Keep artboard top-left locked at 0,0 for reliable coordinate system
     this.artboard.set({
-      left: (w - this.artboard.width!) / 2,
-      top: (h - this.artboard.height!) / 2,
+      left: 0,
+      top: 0,
     });
+
+    // Center viewport transform to fit the resized artboard
+    this.zoomToFit();
 
     this.canvas.renderAll();
     this.saveToHistory();
@@ -1142,31 +1181,27 @@ export class CanvasController {
     if (!this.canvas) return;
     
     if (show) {
-      // Set grid-like workspace visual (e.g. dots or dark styling)
-      this.canvas.backgroundColor = '#15151a'; // deeper dark with visual gridding done by parent viewport or custom pattern
+      this.canvas.backgroundColor = '#0e0e10';
     } else {
-      this.canvas.backgroundColor = '#1c1c24';
+      this.canvas.backgroundColor = '#121214';
     }
     
     this.canvas.renderAll();
   }
 
   // EXPORT UTILITIES
-  public exportToImage(format: 'png' | 'jpeg' | 'webp' | 'svg'): string {
+  public async exportToImage(format: 'png' | 'jpeg' | 'webp' | 'svg'): Promise<string> {
     if (!this.canvas || !this.artboard) return '';
 
-    // If svg, Fabric can generate standard SVG
+    // If svg, we can generate standard SVG
     if (format === 'svg') {
-      // We generate SVG only for objects within the artboard bounds
-      // To export clean SVG, we can define clipping bounds or extract the SVG string
-      // Let's do a clean SVG generation of the canvas, but wrapped in artboard's viewport viewbox
       const activeSelection = this.canvas.getActiveObject();
       this.canvas.discardActiveObject(); // deselect to avoid export indicators
 
       const originalVpt = [...this.canvas.viewportTransform!] as unknown as TMat2D;
       
       // Temporarily zoom/pan so artboard is 0,0 and exactly at 100% zoom
-      this.canvas.setViewportTransform([1, 0, 0, 1, -this.artboard.left!, -this.artboard.top!] as TMat2D);
+      this.canvas.setViewportTransform([1, 0, 0, 1, 0, 0] as TMat2D);
       
       const svgOutput = this.canvas.toSVG({
         width: String(this.artboard.width!),
@@ -1187,45 +1222,35 @@ export class CanvasController {
       return `data:image/svg+xml;utf8,${encodeURIComponent(svgOutput)}`;
     }
 
-    // PNG / JPEG / WEBP
-    const activeSelection = this.canvas.getActiveObject();
-    this.canvas.discardActiveObject(); // deselect
-
-    const originalVpt = [...this.canvas.viewportTransform!] as unknown as TMat2D;
-    const originalWidth = this.canvas.getWidth();
-    const originalHeight = this.canvas.getHeight();
-
-    // Prevent grid lines from rendering during export
-    this.isExporting = true;
-
-    // Temporarily resize canvas to match the artboard's true dimensions
-    this.canvas.setDimensions({
-      width: this.artboard.width!,
-      height: this.artboard.height!
+    // PNG / JPEG / WEBP: Clean offscreen StaticCanvas to isolate document canvas
+    const width = this.artboard.width!;
+    const height = this.artboard.height!;
+    const el = document.createElement('canvas');
+    
+    const staticCanvas = new StaticCanvas(el, {
+      width,
+      height,
+      backgroundColor: this.artboard.fill as string || '#ffffff',
     });
 
-    // For perfect rendering, align to top-left (0,0) at 100% zoom
-    this.canvas.setViewportTransform([1, 0, 0, 1, 0, 0] as TMat2D);
-    this.canvas.renderAll();
+    // Extract all objects except the artboard container itself
+    const objects = this.canvas.getObjects().filter((obj) => !(obj as any).isArtboard);
+    
+    for (const obj of objects) {
+      const cloned = await obj.clone();
+      staticCanvas.add(cloned);
+    }
 
-    // Use toDataURL at 2x multiplier for ultra-crisp results
-    const dataUrl = this.canvas.toDataURL({
+    staticCanvas.renderAll();
+
+    const dataUrl = staticCanvas.toDataURL({
       format: format === 'jpeg' ? 'jpeg' : format === 'webp' ? 'webp' : 'png',
       quality: 1.0,
-      multiplier: 2, // 2x export scale
+      multiplier: 2, // 2x high-resolution multiplier
     });
 
-    // Restore original canvas dimensions & viewport transform
-    this.canvas.setDimensions({
-      width: originalWidth,
-      height: originalHeight
-    });
-    this.canvas.setViewportTransform(originalVpt);
-    
-    // Clear the export flag and restore selection
-    this.isExporting = false;
-    if (activeSelection) this.canvas.setActiveObject(activeSelection);
-    this.canvas.renderAll();
+    // Clean up memory
+    staticCanvas.dispose();
 
     return dataUrl;
   }
@@ -1304,6 +1329,30 @@ export class CanvasController {
     this.canvas.renderAll();
 
     useEditorStore.getState().setZoom(zoom);
+  }
+
+  public setZoom(zoomValue: number) {
+    if (!this.canvas) return;
+    const zoom = Math.max(0.05, Math.min(20, zoomValue));
+    // Zoom relative to the center of the canvas viewport
+    const width = this.canvas.getWidth();
+    const height = this.canvas.getHeight();
+    this.canvas.zoomToPoint(new Point(width / 2, height / 2), zoom);
+    useEditorStore.getState().setZoom(zoom);
+  }
+
+  public zoomIn() {
+    if (!this.canvas) return;
+    this.setZoom(this.canvas.getZoom() + 0.1);
+  }
+
+  public zoomOut() {
+    if (!this.canvas) return;
+    this.setZoom(this.canvas.getZoom() - 0.1);
+  }
+
+  public zoomTo100() {
+    this.setZoom(1.0);
   }
 
   public resize(width: number, height: number) {

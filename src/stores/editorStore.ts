@@ -14,6 +14,14 @@ export interface ActiveProperties {
   shadowBlur?: number;
   shadowOffsetX?: number;
   shadowOffsetY?: number;
+  // Position, Size, and Rotation
+  left?: number;
+  top?: number;
+  width?: number;
+  height?: number;
+  angle?: number;
+  flipX?: boolean;
+  flipY?: boolean;
   // Text specific
   fontFamily?: string;
   fontSize?: number;

@@ -30,6 +30,8 @@ interface ToolbarProps {
   onUndo: () => void;
   onRedo: () => void;
   onZoomToFit: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
   onExport: (format: 'png' | 'jpeg' | 'svg' | 'webp') => void;
   onAddImage: (url: string) => void;
 }
@@ -43,6 +45,8 @@ export function Toolbar({
   onUndo,
   onRedo,
   onZoomToFit,
+  onZoomIn,
+  onZoomOut,
   onExport,
   onAddImage,
 }: ToolbarProps) {
@@ -228,13 +232,13 @@ export function Toolbar({
               <div className="flex gap-2 select-none">
                 <span 
                   className="text-white cursor-pointer hover:text-indigo-400 font-bold px-1"
-                  onClick={() => setZoom(zoom - 0.1)}
+                  onClick={onZoomOut}
                 >
                   -
                 </span>
                 <span 
                   className="text-white cursor-pointer hover:text-indigo-400 font-bold px-1"
-                  onClick={() => setZoom(zoom + 0.1)}
+                  onClick={onZoomIn}
                 >
                   +
                 </span>

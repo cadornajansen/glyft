@@ -265,6 +265,30 @@ export default function App() {
 
       const ctrlOrCmd = e.metaKey || e.ctrlKey;
 
+      // Zoom Shortcuts
+      if (ctrlOrCmd) {
+        if (e.key === '0') {
+          e.preventDefault();
+          canvasControllerRef.current?.zoomToFit();
+          return;
+        }
+        if (e.key === '1') {
+          e.preventDefault();
+          canvasControllerRef.current?.zoomTo100();
+          return;
+        }
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          canvasControllerRef.current?.zoomIn();
+          return;
+        }
+        if (e.key === '-') {
+          e.preventDefault();
+          canvasControllerRef.current?.zoomOut();
+          return;
+        }
+      }
+
       // Copy
       if (ctrlOrCmd && e.key.toLowerCase() === 'c') {
         e.preventDefault();
@@ -376,9 +400,9 @@ export default function App() {
     canvasControllerRef.current?.setArtboardProperty(key, value);
   };
 
-  const handleExport = (format: 'png' | 'jpeg' | 'svg' | 'webp') => {
+  const handleExport = async (format: 'png' | 'jpeg' | 'svg' | 'webp') => {
     if (!canvasControllerRef.current) return;
-    const url = canvasControllerRef.current.exportToImage(format);
+    const url = await canvasControllerRef.current.exportToImage(format);
     if (url) {
       const a = document.createElement('a');
       a.href = url;
@@ -442,6 +466,8 @@ export default function App() {
         onUndo={handleUndo}
         onRedo={handleRedo}
         onZoomToFit={handleZoomToFit}
+        onZoomIn={() => canvasControllerRef.current?.zoomIn()}
+        onZoomOut={() => canvasControllerRef.current?.zoomOut()}
         onExport={handleExport}
         onAddImage={handleAddImage}
       />
