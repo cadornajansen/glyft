@@ -1,8 +1,27 @@
 {
-  "name": "react-example",
+  "name": "glyft",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "A local-first, open-source graphics editor for creating developer-focused visual assets in the browser.",
   "type": "module",
+  "keywords": [
+    "graphics-editor",
+    "design-tool",
+    "canvas-editor",
+    "fabricjs",
+    "local-first",
+    "open-source",
+    "react",
+    "typescript"
+  ],
+  "homepage": "https://github.com/cadornajansen/glyft#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cadornajansen/glyft.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cadornajansen/glyft/issues"
+  },
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
