@@ -1,136 +1,152 @@
-<h1 align="center">Glyft</h1>
+<div align="center">
 
-<p align="center">
-  <strong>A local-first graphics editor for developer-focused visual assets.</strong>
-</p>
+# Glyft
 
-<p align="center">
-  <a href="https://github.com/cadornajansen/glyft/issues"><img src="https://img.shields.io/github/issues/cadornajansen/glyft" alt="Open issues" /></a>
-  <a href="https://github.com/cadornajansen/glyft/stargazers"><img src="https://img.shields.io/github/stars/cadornajansen/glyft?style=social" alt="GitHub stars" /></a>
-  <a href="https://github.com/cadornajansen/glyft/network/members"><img src="https://img.shields.io/github/forks/cadornajansen/glyft?style=social" alt="GitHub forks" /></a>
-</p>
+**Open-source graphics editing for developers who are not designers.**
 
-<p align="center">
-  <a href="#local-development">Local Development</a> ·
-  <a href="#project-structure">Project Structure</a> ·
-  <a href="https://github.com/cadornajansen/glyft/issues">Issues</a> ·
-  <a href="#contributing">Contributing</a>
-</p>
+Create OG images, banners, social cards, thumbnails, and other web assets in a local-first browser editor.
 
-## About
+[Open Glyft](https://glyft.vercel.app) · [Launch the editor](https://glyft.vercel.app/editor) · [Report an issue](https://github.com/cadornajansen/glyft/issues) · [Contribute](CONTRIBUTING.md)
 
-Glyft is an open-source browser graphics editor focused on fast creation of social images, OG banners, cards, covers, and other developer-facing visual assets.
+[![CI](https://github.com/cadornajansen/glyft/actions/workflows/ci.yml/badge.svg)](https://github.com/cadornajansen/glyft/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-7c3aed.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/cadornajansen/glyft?include_prereleases&label=release)](https://github.com/cadornajansen/glyft/releases)
+[![Issues](https://img.shields.io/github/issues/cadornajansen/glyft)](https://github.com/cadornajansen/glyft/issues)
 
-Projects are stored locally in the browser through IndexedDB. There is no account requirement and no backend dependency for the editor itself.
+![Glyft editor preview](public/og-img.png)
 
-## Current capabilities
+</div>
 
-- Infinite canvas with pan and zoom
-- Artboard-based document editing
-- Shapes, text, lines, arrows, images, and SVG image import
-- Transform, typography, fill, stroke, opacity, and shadow controls
-- Layer visibility, locking, naming, and reordering
+## What is Glyft?
+
+Glyft is a browser-based graphics editor designed around a developer workflow. It provides a focused canvas, familiar editing controls, local project storage, portable templates, and production-ready export formats without requiring an account or backend service.
+
+Projects are stored in IndexedDB on the current device. The editor runs entirely in the browser and is available at [`/editor`](https://glyft.vercel.app/editor).
+
+> **Status:** `v0.1.0` is a prerelease. Core editing and export workflows are usable, but some edge cases and advanced recovery behavior are still being refined.
+
+## Highlights
+
+- Artboard-based editing with pan and zoom
+- Text, shapes, lines, arrows, images, and SVG image import
+- Fill, stroke, opacity, typography, shadows, and transforms
+- Layer naming, visibility, locking, grouping, and reordering
 - Undo and redo history
-- Local-first project persistence and autosave
+- Local-first project persistence with autosave
 - PNG, JPEG, WebP, and SVG export
-- Document-center smart guides and snapping
-- Versioned canvas documents and template migrations
+- Portable `.glyft` template import and export
+- High-resolution raster export
+- Keyboard shortcuts and compact canvas controls
 
-Glyft is under active development. Some advanced editing and recovery workflows are still being stabilized before the first beta release.
+## Why local-first?
+
+Glyft does not require an account or application backend for the editor itself. Project data remains in the browser unless you explicitly export it.
+
+This makes the app useful for quick developer-facing assets while keeping the workflow simple:
+
+```text
+open editor → create asset → export file
+```
+
+No sign-in, upload queue, or server-side project storage is required.
 
 ## Tech stack
 
-| Layer | Technology |
+| Area | Technology |
 | --- | --- |
 | Interface | React 19, TypeScript, Tailwind CSS |
 | Canvas | Fabric.js |
-| State | Zustand |
-| Local persistence | Dexie and IndexedDB |
-| Tooling | Vite |
+| Application state | Zustand |
+| Local persistence | Dexie, IndexedDB |
+| Build tooling | Vite |
+| Tests | Vitest, fake-indexeddb |
+| Deployment | Vercel |
 
 ## Local development
 
-### Prerequisites
+### Requirements
 
-- Node.js 20 or newer
-- A supported Node package manager
+- Node.js 22
+- npm
 
-### Install and run
+### Setup
 
 ```bash
-npm install
+git clone https://github.com/cadornajansen/glyft.git
+cd glyft
+npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite, normally `http://localhost:3000`.
+Open `http://localhost:3000` for the landing page or `http://localhost:3000/editor` for the editor.
 
-### Useful commands
+### Commands
 
 ```bash
-npm run dev      # start the development server
+npm run dev      # start the Vite development server
+npm run lint     # run the TypeScript check
+npm run test     # run the Vitest suite
 npm run build    # create a production build
 npm run preview  # preview the production build
-npm run lint     # run the TypeScript check
+```
+
+Before opening a pull request, run:
+
+```bash
+npm run lint
+npm run test
+npm run build
 ```
 
 ## Architecture
 
-Glyft keeps document state separate from viewport state:
+Glyft separates React UI state, document persistence, and Fabric canvas behavior.
 
 ```text
 React interface
       ↓
 Zustand editor state
       ↓
-CanvasController
+CanvasController and canvas services
       ↓
 Fabric.js canvas
       ↓
 Dexie / IndexedDB
 ```
 
-Object coordinates are stored relative to the document origin at `(0, 0)`. Pan and zoom exist only in Fabric's viewport transform and are not persisted as object positions.
-
-## Project structure
+Important areas of the repository:
 
 ```text
 src/
-├── canvas/       Fabric canvas, export, and editor coordination
-├── components/   editor panels, toolbar, layers, and status UI
-├── db/           IndexedDB project persistence
+├── canvas/       canvas orchestration, object restoration, history, export
+├── components/   editor panels, toolbar, layers, dialogs
+├── db/           IndexedDB persistence and transaction-safe updates
+├── pages/        landing and editor route wrappers
 ├── stores/       Zustand editor state
-├── templates/    versioned starter templates
-├── types/        document and project types
-└── App.tsx       application shell and project lifecycle
+├── templates/    portable .glyft packages and template catalog
+└── App.tsx       editor shell and project lifecycle
 ```
 
-## Roadmap
+Document coordinates are stored independently from pan and zoom. Viewport transforms are not persisted as object positions.
 
-Development tasks and beta requirements are tracked in the [engineering roadmap](https://github.com/cadornajansen/glyft/issues/4).
+## Project principles
 
-Current priorities include:
-
-- document validation and recovery
-- reliable group serialization
-- failure-safe undo and redo
-- object-to-object smart guides
-- export regression testing
-- contributor documentation and CI
+- **Local by default.** Project data stays on the current device.
+- **Product before decoration.** The editor should remain fast, direct, and understandable.
+- **Preserve documents.** Changes to persistence and serialization must remain backward-compatible where practical.
+- **React owns UI.** New interface behavior should use React integration points instead of DOM injection.
+- **Small, reviewable changes.** Focused pull requests are preferred over broad rewrites.
 
 ## Contributing
 
-Contributions, bug reports, and focused feature proposals are welcome.
+Bug reports, focused fixes, tests, documentation, and scoped feature proposals are welcome.
 
-Before starting a large change, open or review an issue so the implementation can stay aligned with the current architecture and roadmap.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before starting a change. For larger features, open an issue first so the implementation can be discussed against the current architecture and roadmap.
 
-- [Browse open issues](https://github.com/cadornajansen/glyft/issues)
-- [Report a bug](https://github.com/cadornajansen/glyft/issues/new)
-- [View the engineering roadmap](https://github.com/cadornajansen/glyft/issues/4)
+- [Browse issues](https://github.com/cadornajansen/glyft/issues)
+- [Open a bug report](https://github.com/cadornajansen/glyft/issues/new)
+- [View releases](https://github.com/cadornajansen/glyft/releases)
 
-## Project status
+## License
 
-Glyft is currently an early-stage open-source project and is not yet considered production-stable.
-
-<p align="center">
-  <sub>Local-first. Open source. Built for fast visual creation.</sub>
-</p>
+Glyft is released under the [MIT License](LICENSE).
