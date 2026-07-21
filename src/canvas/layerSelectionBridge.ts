@@ -3,7 +3,17 @@ import { CanvasController } from "./CanvasController";
 import { useEditorStore } from "../stores/editorStore";
 
 const MULTI_SELECTION_PREFIX = "__glyft_layer_selection__:";
-const installedFlag = Symbol.for("glyft.layerSelectionBridge.installed");
+const INSTALLED_FLAG = "__glyftLayerSelectionBridgeInstalled";
+
+type PatchedController = CanvasController & {
+  updateZundandUI: () => void;
+};
+
+type PatchedPrototype = {
+  [INSTALLED_FLAG]?: boolean;
+  updateZundandUI: (this: PatchedController) => void;
+  selectObjectById: (this: PatchedController, id: string) => void;
+};
 
 export function encodeLayerSelection(ids: string[]) {
   return `${MULTI_SELECTION_PREFIX}${JSON.stringify(ids)}`;
@@ -16,14 +26,10 @@ function readSelectionIds(controller: CanvasController) {
 }
 
 export function installLayerSelectionBridge() {
-  const prototype = CanvasController.prototype as CanvasController & {
-    [installedFlag]?: boolean;
-    updateZundandUI: () => void;
-    selectObjectById: (id: string) => void;
-  };
+  const prototype = CanvasController.prototype as unknown as PatchedPrototype;
 
-  if (prototype[installedFlag]) return;
-  prototype[installedFlag] = true;
+  if (prototype[INSTALLED_FLAG]) return;
+  prototype[INSTALLED_FLAG] = true;
 
   const originalUpdateUI = prototype.updateZundandUI;
   const originalSelectObjectById = prototype.selectObjectById;
@@ -55,7 +61,10 @@ export function installLayerSelectionBridge() {
     const idSet = new Set(ids);
     const objects = this.canvas
       .getObjects()
-      .filter((object) => !(object as FabricObject & { isArtboard?: boolean }).isArtboard)
+      .filter(
+        (object) =>
+          !(object as FabricObject & { isArtboard?: boolean }).isArtboard,
+      )
       .filter((object) => {
         const id = (object as FabricObject & { id?: string }).id;
         return Boolean(id && idSet.has(id));
