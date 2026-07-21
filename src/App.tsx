@@ -8,6 +8,7 @@ import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { CanvasController } from "./canvas/CanvasController";
 import { useEditorStore, type ActiveProperties } from "./stores/editorStore";
 import { getAllProjects, saveProject, deleteProject, db } from "./db/projectDb";
+import { saveProjectCanvasState } from "./db/saveProjectCanvasState";
 import { type Project } from "./types";
 import {
   createDefaultOgTemplateProject,
@@ -151,43 +152,35 @@ export default function App() {
             return;
           }
 
-          const storeState = useEditorStore.getState();
-          if (storeState.currentProjectId !== projectId) {
+          const storeStateBefore = useEditorStore.getState();
+          if (
+            storeStateBefore.currentProjectId !== projectId ||
+            !storeStateBefore.currentProject ||
+            storeStateBefore.currentProject.id !== projectId
+          ) {
             setIsSaving(false);
             return;
           }
 
-          const currentProj = storeState.currentProject;
-          if (!currentProj || currentProj.id !== projectId) {
-            setIsSaving(false);
-            return;
-          }
-
-          const existingProject = await db.projects.get(projectId);
-          if (!existingProject) {
-            setIsSaving(false);
-            return;
-          }
-
-          const updatedProj = {
-            ...currentProj,
-            thumbnail,
+          const updatedProj = await saveProjectCanvasState(
+            projectId,
             canvasData,
-            updatedAt: Date.now(),
-          };
+            thumbnail,
+            Date.now(),
+          );
 
-          await db.transaction("rw", db.projects, async () => {
-            const latestProject = await db.projects.get(projectId);
-            if (!latestProject) return;
-            await db.projects.put(updatedProj);
-          });
+          if (!updatedProj) {
+            setIsSaving(false);
+            return;
+          }
 
           if (generation !== controllerGenerationRef.current) {
             setIsSaving(false);
             return;
           }
 
-          if (useEditorStore.getState().currentProjectId === projectId) {
+          const storeStateAfter = useEditorStore.getState();
+          if (storeStateAfter.currentProjectId === projectId) {
             setCurrentProject(updatedProj);
           }
           setIsSaving(false);
