@@ -26,6 +26,7 @@ import {
   importPortableTemplateFile,
   importPortableTemplatePackage,
 } from "../templates/portableTemplate";
+import { renameProject, duplicateLatestProject } from "../db/updateProjectMetadata";
 import type { Project } from "../types";
 
 interface Preset {
@@ -142,43 +143,28 @@ export function Sidebar({
     event.stopPropagation();
     setDeletingId(id);
   };
-
   const handleDuplicate = async (
     project: Project,
     event: React.MouseEvent,
   ) => {
     event.stopPropagation();
-    await saveProject({
-      ...project,
-      id: crypto.randomUUID(),
-      name: `${project.name} (Copy)`,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+    await duplicateLatestProject(project.id);
     await loadProjects();
   };
-
   const startRename = (project: Project, event: React.MouseEvent) => {
     event.stopPropagation();
     setEditingId(project.id);
     setEditName(project.name);
   };
-
   const saveRename = async (project: Project) => {
     if (!editName.trim()) return;
-    const updated = {
-      ...project,
-      name: editName.trim(),
-      updatedAt: Date.now(),
-    };
-    await saveProject(updated);
-    if (currentProjectId === project.id) {
+    const updated = await renameProject(project.id, editName.trim());
+    if (updated && currentProjectId === project.id) {
       useEditorStore.getState().setCurrentProject(updated);
     }
     setEditingId(null);
     await loadProjects();
   };
-
   const handleAssetUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
