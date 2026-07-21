@@ -39,11 +39,26 @@ function removeMenu() {
   document.getElementById(MENU_ID)?.remove();
 }
 
+function normalizeFabricTarget(value: unknown): FabricObject | null {
+  if (!value || typeof value !== "object") return null;
+
+  const wrappedTarget = "target" in value
+    ? (value as { target?: unknown }).target
+    : value;
+
+  if (!wrappedTarget || typeof wrappedTarget !== "object") return null;
+  if (!("containsPoint" in wrappedTarget) || !("setCoords" in wrappedTarget)) {
+    return null;
+  }
+
+  return wrappedTarget as FabricObject;
+}
+
 function findObjectAtPointer(controller: RuntimeController, event: MouseEvent) {
   const canvas = controller.canvas;
   if (!canvas) return null;
 
-  const directTarget = canvas.findTarget(event as never);
+  const directTarget = normalizeFabricTarget(canvas.findTarget(event as never));
   if (
     directTarget &&
     !(directTarget as FabricObject & { isArtboard?: boolean }).isArtboard
