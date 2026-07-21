@@ -14,21 +14,22 @@ type LayerObject = FabricObject & {
   isArtboard?: boolean;
 };
 
-type PatchedController = CanvasController & {
+interface RuntimeController {
+  canvas: CanvasController["canvas"];
   updateZundandUI: () => void;
-};
+}
 
 type PatchedPrototype = {
   [INSTALLED_FLAG]?: boolean;
-  updateZundandUI: (this: PatchedController) => void;
-  selectObjectById: (this: PatchedController, id: string) => void;
+  updateZundandUI: (this: RuntimeController) => void;
+  selectObjectById: (this: RuntimeController, id: string) => void;
 };
 
 export function encodeLayerSelection(ids: string[]) {
   return `${MULTI_SELECTION_PREFIX}${JSON.stringify(ids)}`;
 }
 
-function readSelectionIds(controller: CanvasController) {
+function readSelectionIds(controller: RuntimeController) {
   return (controller.canvas?.getActiveObjects() ?? [])
     .map((object) => (object as LayerObject).id)
     .filter((id): id is string => Boolean(id));
@@ -47,7 +48,7 @@ function findNestedObject(object: FabricObject, id: string): FabricObject | unde
   return undefined;
 }
 
-function findObjectsByIds(controller: CanvasController, ids: string[]) {
+function findObjectsByIds(controller: RuntimeController, ids: string[]) {
   if (!controller.canvas) return [];
 
   const remainingIds = new Set(ids);
