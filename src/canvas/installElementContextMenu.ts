@@ -4,12 +4,24 @@ import { CanvasController } from "./CanvasController";
 const INSTALLED_FLAG = "__glyftElementContextMenuInstalled";
 const MENU_ID = "glyft-element-context-menu";
 
-let activeController: CanvasController | null = null;
-
-interface ContextController extends CanvasController {
+interface RuntimeController {
+  canvas: CanvasController["canvas"];
   clipboard: FabricObject | null;
   updateZundandUI: () => void;
   cutSelected: () => Promise<void>;
+  hasClipboard: () => boolean;
+  copySelected: () => void;
+  pasteSelected: () => void;
+  duplicateSelected: () => void;
+  flipHorizontal: () => void;
+  flipVertical: () => void;
+  bringToFront: () => void;
+  sendToBack: () => void;
+  groupSelected: () => void;
+  ungroupSelected: () => void;
+  lockSelected: () => void;
+  unlockSelected: (id?: string) => void;
+  deleteSelected: () => void;
 }
 
 interface MenuAction {
@@ -21,15 +33,13 @@ interface MenuAction {
   run: () => void | Promise<void>;
 }
 
+let activeController: RuntimeController | null = null;
+
 function removeMenu() {
   document.getElementById(MENU_ID)?.remove();
 }
 
-function isCanvasContextTarget(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest("#canvas-container"));
-}
-
-function findObjectAtPointer(controller: CanvasController, event: MouseEvent) {
+function findObjectAtPointer(controller: RuntimeController, event: MouseEvent) {
   const canvas = controller.canvas;
   if (!canvas) return null;
 
@@ -41,8 +51,7 @@ function findObjectAtPointer(controller: CanvasController, event: MouseEvent) {
     return directTarget;
   }
 
-  const scenePoint = canvas.getScenePoint(event as never);
-
+  const point = canvas.getScenePoint(event as never);
   return (
     canvas
       .getObjects()
@@ -52,21 +61,20 @@ function findObjectAtPointer(controller: CanvasController, event: MouseEvent) {
         if ((object as FabricObject & { isArtboard?: boolean }).isArtboard) {
           return false;
         }
-        if (object.visible === false) return false;
-        return object.containsPoint(scenePoint);
+        return object.visible !== false && object.containsPoint(point);
       }) ?? null
   );
 }
 
-function selectContextTarget(controller: ContextController, event: MouseEvent) {
+function selectObjectUnderPointer(
+  controller: RuntimeController,
+  event: MouseEvent,
+) {
   const canvas = controller.canvas;
   if (!canvas) return;
 
   const target = findObjectAtPointer(controller, event);
-  if (!target) return;
-
-  const currentSelection = canvas.getActiveObjects();
-  if (currentSelection.includes(target)) return;
+  if (!target || canvas.getActiveObjects().includes(target)) return;
 
   canvas.discardActiveObject();
   canvas.setActiveObject(target);
@@ -74,13 +82,15 @@ function selectContextTarget(controller: ContextController, event: MouseEvent) {
   controller.updateZundandUI();
 }
 
-function makeButton(action: MenuAction, close: () => void) {
-  const fragment = document.createDocumentFragment();
-
+function appendMenuButton(
+  menu: HTMLElement,
+  action: MenuAction,
+  close: () => void,
+) {
   if (action.separatorBefore) {
-    const divider = document.createElement("div");
-    divider.style.cssText = "height:1px;background:#343434;margin:5px 6px";
-    fragment.appendChild(divider);
+    const separator = document.createElement("div");
+    separator.style.cssText = "height:1px;background:#343434;margin:5px 6px";
+    menu.appendChild(separator);
   }
 
   const button = document.createElement("button");
@@ -126,100 +136,101 @@ function makeButton(action: MenuAction, close: () => void) {
     button.addEventListener("mouseleave", () => {
       button.style.background = "transparent";
     });
-    button.addEventListener("click", async (clickEvent) => {
-      clickEvent.stopPropagation();
+    button.addEventListener("click", async (event) => {
+      event.stopPropagation();
       await action.run();
       close();
     });
   }
 
-  fragment.appendChild(button);
-  return fragment;
+  menu.appendChild(button);
 }
 
-function showMenu(controller: ContextController, event: MouseEvent) {
-  removeMenu();
-  selectContextTarget(controller, event);
-
+function getActions(controller: RuntimeController): MenuAction[] {
   const canvas = controller.canvas;
-  if (!canvas) return;
+  if (!canvas) return [];
 
   const selected = canvas.getActiveObjects();
   const active = canvas.getActiveObject();
-  const hasSelection = selected.length > 0;
-  const hasClipboard = controller.hasClipboard();
-  const isGroup = active?.type === "group";
+
+  if (selected.length === 0) {
+    return [
+      {
+        label: "Paste",
+        shortcut: "Ctrl V",
+        disabled: !controller.hasClipboard(),
+        run: () => controller.pasteSelected(),
+      },
+    ];
+  }
+
   const hasLocked = selected.some((object) =>
     Boolean((object as FabricObject & { locked?: boolean }).locked),
   );
 
-  const actions: MenuAction[] = hasSelection
-    ? [
-        { label: "Cut", shortcut: "Ctrl X", run: () => controller.cutSelected() },
-        { label: "Copy", shortcut: "Ctrl C", run: () => controller.copySelected() },
-        {
-          label: "Paste",
-          shortcut: "Ctrl V",
-          disabled: !hasClipboard,
-          run: () => controller.pasteSelected(),
-        },
-        {
-          label: "Duplicate",
-          shortcut: "Ctrl D",
-          run: () => controller.duplicateSelected(),
-        },
-        {
-          label: "Flip horizontal",
+  return [
+    { label: "Cut", shortcut: "Ctrl X", run: () => controller.cutSelected() },
+    { label: "Copy", shortcut: "Ctrl C", run: () => controller.copySelected() },
+    {
+      label: "Paste",
+      shortcut: "Ctrl V",
+      disabled: !controller.hasClipboard(),
+      run: () => controller.pasteSelected(),
+    },
+    {
+      label: "Duplicate",
+      shortcut: "Ctrl D",
+      run: () => controller.duplicateSelected(),
+    },
+    {
+      label: "Flip horizontal",
+      separatorBefore: true,
+      run: () => controller.flipHorizontal(),
+    },
+    { label: "Flip vertical", run: () => controller.flipVertical() },
+    {
+      label: "Bring to front",
+      separatorBefore: true,
+      run: () => controller.bringToFront(),
+    },
+    { label: "Send to back", run: () => controller.sendToBack() },
+    selected.length > 1
+      ? {
+          label: "Group selection",
+          shortcut: "Ctrl G",
           separatorBefore: true,
-          run: () => controller.flipHorizontal(),
-        },
-        { label: "Flip vertical", run: () => controller.flipVertical() },
-        {
-          label: "Bring to front",
+          run: () => controller.groupSelected(),
+        }
+      : {
+          label: "Ungroup",
           separatorBefore: true,
-          run: () => controller.bringToFront(),
+          disabled: active?.type !== "group",
+          run: () => controller.ungroupSelected(),
         },
-        { label: "Send to back", run: () => controller.sendToBack() },
-        selected.length > 1
-          ? {
-              label: "Group selection",
-              shortcut: "Ctrl G",
-              separatorBefore: true,
-              run: () => controller.groupSelected(),
-            }
-          : {
-              label: "Ungroup",
-              separatorBefore: true,
-              disabled: !isGroup,
-              run: () => controller.ungroupSelected(),
-            },
-        hasLocked
-          ? {
-              label: "Unlock",
-              run: () => {
-                selected.forEach((object) => {
-                  const id = (object as FabricObject & { id?: string }).id;
-                  if (id) controller.unlockSelected(id);
-                });
-              },
-            }
-          : { label: "Lock", run: () => controller.lockSelected() },
-        {
-          label: "Delete",
-          shortcut: "Delete",
-          danger: true,
-          separatorBefore: true,
-          run: () => controller.deleteSelected(),
-        },
-      ]
-    : [
-        {
-          label: "Paste",
-          shortcut: "Ctrl V",
-          disabled: !hasClipboard,
-          run: () => controller.pasteSelected(),
-        },
-      ];
+    hasLocked
+      ? {
+          label: "Unlock",
+          run: () => {
+            selected.forEach((object) => {
+              const id = (object as FabricObject & { id?: string }).id;
+              if (id) controller.unlockSelected(id);
+            });
+          },
+        }
+      : { label: "Lock", run: () => controller.lockSelected() },
+    {
+      label: "Delete",
+      shortcut: "Delete",
+      danger: true,
+      separatorBefore: true,
+      run: () => controller.deleteSelected(),
+    },
+  ];
+}
+
+function showMenu(controller: RuntimeController, event: MouseEvent) {
+  removeMenu();
+  selectObjectUnderPointer(controller, event);
 
   const menu = document.createElement("div");
   menu.id = MENU_ID;
@@ -238,7 +249,10 @@ function showMenu(controller: ContextController, event: MouseEvent) {
   ].join(";");
 
   const close = () => removeMenu();
-  actions.forEach((action) => menu.appendChild(makeButton(action, close)));
+  getActions(controller).forEach((action) =>
+    appendMenuButton(menu, action, close),
+  );
+
   document.body.appendChild(menu);
 
   const bounds = menu.getBoundingClientRect();
@@ -255,8 +269,8 @@ function showMenu(controller: ContextController, event: MouseEvent) {
 export function installElementContextMenu() {
   const prototype = CanvasController.prototype as unknown as {
     [INSTALLED_FLAG]?: boolean;
-    updateZundandUI: (this: ContextController) => void;
-    cutSelected?: (this: ContextController) => Promise<void>;
+    updateZundandUI: (this: RuntimeController) => void;
+    cutSelected?: (this: RuntimeController) => Promise<void>;
   };
 
   if (prototype[INSTALLED_FLAG]) return;
@@ -279,12 +293,16 @@ export function installElementContextMenu() {
   document.addEventListener(
     "contextmenu",
     (event) => {
-      if (!isCanvasContextTarget(event.target) || !activeController?.canvas) return;
+      const target = event.target;
+      const insideCanvas =
+        target instanceof Element && Boolean(target.closest("#canvas-container"));
+
+      if (!insideCanvas || !activeController?.canvas) return;
 
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      showMenu(activeController as ContextController, event);
+      showMenu(activeController, event);
     },
     true,
   );
@@ -298,8 +316,8 @@ export function installElementContextMenu() {
     true,
   );
 
-  window.addEventListener("blur", removeMenu);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") removeMenu();
   });
+  window.addEventListener("blur", removeMenu);
 }
