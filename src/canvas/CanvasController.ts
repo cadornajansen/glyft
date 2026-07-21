@@ -34,6 +34,7 @@ export class CanvasController {
   private onProjectSaveCallback:
     | ((thumbnail: string, canvasData: string) => void)
     | null = null;
+  private onLoadErrorCallback: ((err: Error) => void) | null = null;
 
   private handleKeyDown = (e: KeyboardEvent) => {
     if (e.code === "Space") {
@@ -70,8 +71,10 @@ export class CanvasController {
     height: number,
     project: Project,
     onSave: (thumbnail: string, canvasData: string) => void,
+    onLoadError?: (err: Error) => void,
   ) {
     this.onProjectSaveCallback = onSave;
+    this.onLoadErrorCallback = onLoadError ?? null;
     this.readyPromise = this.initCanvas(canvasId, width, height, project);
   }
 
@@ -153,7 +156,9 @@ export class CanvasController {
 
         await this.loadObjects(parsedDocument.document.objects);
       } catch (err) {
-        console.error("Error parsing canvas data:", err);
+        const error = err instanceof Error ? err : new Error(String(err));
+        console.error("Error parsing canvas data:", error);
+        this.onLoadErrorCallback?.(error);
       }
     }
 
@@ -575,9 +580,14 @@ export class CanvasController {
   private async loadCanvasStateFromJSON(jsonString: string) {
     if (!this.canvas) return;
 
+    // Snapshot non-artboard objects so we can roll back if restoration fails
+    const preClearObjects = this.canvas
+      .getObjects()
+      .filter((obj) => !(obj as any).isArtboard);
+
     // Clear everything except artboard
-    const objects = this.canvas.getObjects().slice();
-    for (const obj of objects) {
+    const allObjects = this.canvas.getObjects().slice();
+    for (const obj of allObjects) {
       if (!(obj as any).isArtboard) {
         this.canvas.remove(obj);
       }
@@ -593,7 +603,14 @@ export class CanvasController {
 
       await this.loadObjects(parsed.document.objects);
     } catch (error) {
-      console.error("Failed to load canvas state:", error);
+      // Restoration failed — put the pre-clear objects back so the canvas
+      // is not left blank and history remains operable.
+      console.error("Failed to load canvas state, rolling back:", error);
+      for (const obj of preClearObjects) {
+        this.canvas.add(obj);
+      }
+      this.canvas.renderAll();
+      this.updateZundandUI();
       throw error;
     }
 
@@ -1296,7 +1313,7 @@ export class CanvasController {
   }
 
   // AUTOSAVE TRIGGER
-  private async triggerAutosave() {
+  public async triggerAutosave() {
     if (!this.canvas || !this.onProjectSaveCallback || this.disposed) return;
 
     try {
