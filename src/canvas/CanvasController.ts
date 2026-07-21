@@ -20,6 +20,7 @@ import { type Project } from '../types';
 export class CanvasController {
   public canvas: FabricCanvas | null = null;
   public artboard: Rect | null = null;
+  public readyPromise: Promise<void>;
   private undoStack: string[] = [];
   private redoStack: string[] = [];
   private isApplyingHistory = false;
@@ -65,10 +66,10 @@ export class CanvasController {
     onSave: (thumbnail: string, canvasData: string) => void
   ) {
     this.onProjectSaveCallback = onSave;
-    this.initCanvas(canvasId, width, height, project);
+    this.readyPromise = this.initCanvas(canvasId, width, height, project);
   }
 
-  private initCanvas(canvasId: string, width: number, height: number, project: Project) {
+  private async initCanvas(canvasId: string, width: number, height: number, project: Project) {
     // 1. Setup Figma-style Selection Controls
     FabricObject.prototype.borderColor = '#3b82f6';
     FabricObject.prototype.cornerColor = '#ffffff';
@@ -126,9 +127,19 @@ export class CanvasController {
         // Clean out existing artboard to prevent duplicates during load
         const filteredObjects = (parsed.objects || []).filter((o: any) => o.id !== 'artboard_doc');
         
+        // Detect legacy coordinates (no version field or version < 2)
+        const isLegacy = !parsed.version || parsed.version < 2;
+        let legacyLeftOffset = 0;
+        let legacyTopOffset = 0;
+        if (isLegacy) {
+          // Centering offset calculation used in old code
+          legacyLeftOffset = (width - project.width) / 2;
+          legacyTopOffset = (height - project.height) / 2;
+        }
+
         // Deserialize objects manually or load using Fabric parser
         // For security and performance, let's parse objects and load them
-        this.loadObjects(filteredObjects);
+        await this.loadObjects(filteredObjects, legacyLeftOffset, legacyTopOffset);
       } catch (err) {
         console.error('Error parsing canvas data:', err);
       }
@@ -144,7 +155,7 @@ export class CanvasController {
     this.updateZundandUI();
   }
 
-  private async loadObjects(objectsData: any[]) {
+  private async loadObjects(objectsData: any[], offsetX = 0, offsetY = 0) {
     if (!this.canvas) return;
     
     // We can load objects sequentially
@@ -154,6 +165,13 @@ export class CanvasController {
         const options: TOptions<any> = { ...objData };
         delete (options as any).type;
 
+        if (offsetX !== 0 && options.left !== undefined) {
+          options.left = options.left - offsetX;
+        }
+        if (offsetY !== 0 && options.top !== undefined) {
+          options.top = options.top - offsetY;
+        }
+
         switch (objData.type?.toLowerCase()) {
           case 'rect':
             obj = new Rect(options);
@@ -161,9 +179,14 @@ export class CanvasController {
           case 'circle':
             obj = new Circle(options);
             break;
-          case 'line':
-            obj = new Line([objData.x1, objData.y1, objData.x2, objData.y2], options);
+          case 'line': {
+            const lx1 = (objData.x1 !== undefined) ? objData.x1 - offsetX : 0;
+            const ly1 = (objData.y1 !== undefined) ? objData.y1 - offsetY : 0;
+            const lx2 = (objData.x2 !== undefined) ? objData.x2 - offsetX : 0;
+            const ly2 = (objData.y2 !== undefined) ? objData.y2 - offsetY : 0;
+            obj = new Line([lx1, ly1, lx2, ly2], options);
             break;
+          }
           case 'path':
             obj = new Path(objData.path, options);
             break;
@@ -1190,114 +1213,168 @@ export class CanvasController {
   }
 
   // EXPORT UTILITIES
-  public async exportToImage(format: 'png' | 'jpeg' | 'webp' | 'svg'): Promise<string> {
+  public async exportToImage(
+    format: 'png' | 'jpeg' | 'webp' | 'svg'
+  ): Promise<string> {
     if (!this.canvas || !this.artboard) return '';
 
-    // If svg, we can generate standard SVG
-    if (format === 'svg') {
-      const activeSelection = this.canvas.getActiveObject();
-      this.canvas.discardActiveObject(); // deselect to avoid export indicators
+    const width = Math.round(this.artboard.width ?? 0);
+    const height = Math.round(this.artboard.height ?? 0);
 
-      const originalVpt = [...this.canvas.viewportTransform!] as unknown as TMat2D;
-      
-      // Temporarily zoom/pan so artboard is 0,0 and exactly at 100% zoom
-      this.canvas.setViewportTransform([1, 0, 0, 1, 0, 0] as TMat2D);
-      
-      const svgOutput = this.canvas.toSVG({
-        width: String(this.artboard.width!),
-        height: String(this.artboard.height!),
-        viewBox: {
-          x: 0,
-          y: 0,
-          width: this.artboard.width!,
-          height: this.artboard.height!,
-        },
-      });
+    if (width <= 0 || height <= 0) return '';
 
-      // Restore viewport
-      this.canvas.setViewportTransform(originalVpt);
-      if (activeSelection) this.canvas.setActiveObject(activeSelection);
-      this.canvas.renderAll();
+    const artboardLeft = this.artboard.left ?? 0;
+    const artboardTop = this.artboard.top ?? 0;
 
-      return `data:image/svg+xml;utf8,${encodeURIComponent(svgOutput)}`;
-    }
+    const element = document.createElement('canvas');
 
-    // PNG / JPEG / WEBP: Clean offscreen StaticCanvas to isolate document canvas
-    const width = this.artboard.width!;
-    const height = this.artboard.height!;
-    const el = document.createElement('canvas');
-    
-    const staticCanvas = new StaticCanvas(el, {
+    const exportCanvas = new StaticCanvas(element, {
       width,
       height,
-      backgroundColor: this.artboard.fill as string || '#ffffff',
+      backgroundColor:
+        typeof this.artboard.fill === 'string'
+          ? this.artboard.fill
+          : '#ffffff',
+      renderOnAddRemove: false,
+      enableRetinaScaling: false,
     });
 
-    // Extract all objects except the artboard container itself
-    const objects = this.canvas.getObjects().filter((obj) => !(obj as any).isArtboard);
-    
-    for (const obj of objects) {
-      const cloned = await obj.clone();
-      staticCanvas.add(cloned);
+    try {
+      const sourceObjects = this.canvas
+        .getObjects()
+        .filter(
+          object =>
+            !(object as any).isArtboard &&
+            object.visible !== false
+        );
+
+      for (const sourceObject of sourceObjects) {
+        const cloned = await sourceObject.clone();
+
+        cloned.set({
+          left: (cloned.left ?? 0) - artboardLeft,
+          top: (cloned.top ?? 0) - artboardTop,
+        });
+
+        cloned.setCoords();
+        exportCanvas.add(cloned);
+      }
+
+      exportCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+      exportCanvas.renderAll();
+
+      if (format === 'svg') {
+        const svg = exportCanvas.toSVG({
+          width: String(width),
+          height: String(height),
+          viewBox: {
+            x: 0,
+            y: 0,
+            width,
+            height,
+          },
+        });
+
+        return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      }
+
+      return exportCanvas.toDataURL({
+        format:
+          format === 'jpeg'
+            ? 'jpeg'
+            : format === 'webp'
+              ? 'webp'
+              : 'png',
+        quality: 1,
+        multiplier: 1,
+        left: 0,
+        top: 0,
+        width,
+        height,
+        enableRetinaScaling: false,
+      });
+    } finally {
+      exportCanvas.dispose();
     }
+  }
 
-    staticCanvas.renderAll();
+  private async generateThumbnailDataURL(): Promise<string> {
+    if (!this.canvas || !this.artboard) return '';
 
-    const dataUrl = staticCanvas.toDataURL({
-      format: format === 'jpeg' ? 'jpeg' : format === 'webp' ? 'webp' : 'png',
-      quality: 1.0,
-      multiplier: 2, // 2x high-resolution multiplier
+    const width = Math.round(this.artboard.width ?? 0);
+    const height = Math.round(this.artboard.height ?? 0);
+
+    if (width <= 0 || height <= 0) return '';
+
+    const artboardLeft = this.artboard.left ?? 0;
+    const artboardTop = this.artboard.top ?? 0;
+
+    const element = document.createElement('canvas');
+
+    const exportCanvas = new StaticCanvas(element, {
+      width,
+      height,
+      backgroundColor:
+        typeof this.artboard.fill === 'string'
+          ? this.artboard.fill
+          : '#ffffff',
+      renderOnAddRemove: false,
+      enableRetinaScaling: false,
     });
 
-    // Clean up memory
-    staticCanvas.dispose();
+    try {
+      const sourceObjects = this.canvas
+        .getObjects()
+        .filter(
+          object =>
+            !(object as any).isArtboard &&
+            object.visible !== false
+        );
 
-    return dataUrl;
+      for (const sourceObject of sourceObjects) {
+        const cloned = await sourceObject.clone();
+
+        cloned.set({
+          left: (cloned.left ?? 0) - artboardLeft,
+          top: (cloned.top ?? 0) - artboardTop,
+        });
+
+        cloned.setCoords();
+        exportCanvas.add(cloned);
+      }
+
+      exportCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+      exportCanvas.renderAll();
+
+      return exportCanvas.toDataURL({
+        format: 'png',
+        quality: 0.6,
+        multiplier: 0.2, // miniature thumbnail
+        left: 0,
+        top: 0,
+        width,
+        height,
+        enableRetinaScaling: false,
+      });
+    } catch (err) {
+      console.error('Failed to generate thumbnail:', err);
+      return '';
+    } finally {
+      exportCanvas.dispose();
+    }
   }
 
   // AUTOSAVE TRIGGER
-  private triggerAutosave() {
+  private async triggerAutosave() {
     if (!this.canvas || !this.onProjectSaveCallback) return;
     
-    // Generate low-res thumbnail
-    const originalVpt = [...this.canvas.viewportTransform!] as unknown as TMat2D;
-    const originalWidth = this.canvas.getWidth();
-    const originalHeight = this.canvas.getHeight();
-
-    // Prevent grid lines from rendering on thumbnail
-    this.isExporting = true;
-
-    let thumbnail = '';
-    if (this.artboard) {
-      // Temporarily resize canvas to match the artboard's true dimensions
-      this.canvas.setDimensions({
-        width: this.artboard.width!,
-        height: this.artboard.height!
-      });
-
-      // Align to top-left (0,0) at 100% zoom
-      this.canvas.setViewportTransform([1, 0, 0, 1, 0, 0] as TMat2D);
-      this.canvas.renderAll();
-
-      thumbnail = this.canvas.toDataURL({
-        format: 'png',
-        quality: 0.6,
-        multiplier: 0.25, // miniature thumbnail
-      });
-
-      // Restore original canvas dimensions
-      this.canvas.setDimensions({
-        width: originalWidth,
-        height: originalHeight
-      });
+    try {
+      const thumbnail = await this.generateThumbnailDataURL();
+      const canvasData = this.getCleanCanvasJSON();
+      this.onProjectSaveCallback(thumbnail, canvasData);
+    } catch (err) {
+      console.error('Autosave error:', err);
     }
-
-    this.canvas.setViewportTransform(originalVpt);
-    this.isExporting = false;
-    this.canvas.renderAll();
-
-    const canvasData = this.getCleanCanvasJSON();
-    this.onProjectSaveCallback(thumbnail, canvasData);
   }
 
   public zoomToFit() {

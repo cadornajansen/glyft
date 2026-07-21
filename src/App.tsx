@@ -186,8 +186,13 @@ export default function App() {
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
         saveTimeoutRef.current = setTimeout(async () => {
+          const currentProj = useEditorStore.getState().currentProject;
+          if (!currentProj) {
+            setIsSaving(false);
+            return;
+          }
           const updatedProj = {
-            ...project,
+            ...currentProj,
             thumbnail,
             canvasData,
             updatedAt: Date.now(),
@@ -201,10 +206,10 @@ export default function App() {
 
     canvasControllerRef.current = controller;
 
-    // Zoom to fit centered
-    setTimeout(() => {
+    // Zoom to fit centered after objects are fully loaded
+    controller.readyPromise.then(() => {
       controller.zoomToFit();
-    }, 100);
+    });
   };
 
   const handleLoadProject = async (id: string) => {
