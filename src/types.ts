@@ -10,6 +10,7 @@ export interface CanvasObjectData extends Record<string, unknown> {
   y1?: number;
   x2?: number;
   y2?: number;
+  objects?: CanvasObjectData[];
 }
 
 export interface CanvasDocument {
