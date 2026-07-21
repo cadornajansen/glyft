@@ -32,6 +32,10 @@ export async function deleteProject(id: string): Promise<void> {
   await db.projects.delete(id);
 }
 
+export async function resetLocalApp(): Promise<void> {
+  await db.delete();
+}
+
 export async function createNewProject(
   name: string,
   width = 800,

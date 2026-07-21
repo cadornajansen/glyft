@@ -35,9 +35,21 @@ export class CanvasController {
   private isDragging = false;
   private lastPosX = 0;
   private lastPosY = 0;
+  private snapThreshold = 8;
+  private snapReleaseThreshold = 14;
+
+  private activeGuides = {
+    vertical: false,
+    horizontal: false,
+  };
+
+  private snapLocks = {
+    vertical: false,
+    horizontal: false,
+  };
   private clipboard: any = null;
   private isExporting = false;
-  private showGrid = true;
+  private showGrid = false;
   private pendingDocumentMigration = false;
   private onProjectSaveCallback:
     | ((thumbnail: string, canvasData: string) => void)
@@ -269,8 +281,17 @@ export class CanvasController {
 
       try {
         let obj: FabricObject | null = null;
-        const options: TOptions<any> = { ...objData };
+        const options: TOptions<any> = {
+          ...objData,
+
+          // Glyft always treats left/top as the object's top-left document position.
+          originX: "left",
+          originY: "top",
+        };
+
         delete (options as any).type;
+        const offsetX = 0;
+        const offsetY = 0;
 
         switch (objData.type?.toLowerCase()) {
           case "rect":
@@ -288,10 +309,10 @@ export class CanvasController {
             break;
           }
           case "path":
-            obj = new Path(objData.path, options);
+            obj = new Path(objData.path as string | any, options);
             break;
           case "itext":
-            obj = new IText(objData.text || "Text", options);
+            obj = new IText((objData.text as string) || "Text", options);
             break;
           case "image":
             // Fabric v6+ image loading from source
@@ -302,7 +323,7 @@ export class CanvasController {
                   img.crossOrigin = "anonymous";
                   img.onload = () => resolve(img);
                   img.onerror = () => reject(new Error("Image load fail"));
-                  img.src = objData.src;
+                  img.src = objData.src as string;
                 },
               );
               if (!this.canvas || this.disposed) return;
@@ -312,10 +333,16 @@ export class CanvasController {
         }
 
         if (obj && this.canvas && !this.disposed) {
-          // Set custom id and name
           (obj as any).id = objData.id || crypto.randomUUID();
           (obj as any).name =
             objData.name || `${objData.type?.toUpperCase()} Item`;
+
+          obj.set({
+            originX: "left",
+            originY: "top",
+          });
+
+          obj.setCoords();
           this.canvas.add(obj);
         }
       } catch (e) {
@@ -383,17 +410,113 @@ export class CanvasController {
     }
   }
 
+  private applyArtboardCenterSnapping(target: FabricObject) {
+    if (!this.artboard) return;
+
+    const artboardWidth = this.artboard.width ?? 0;
+    const artboardHeight = this.artboard.height ?? 0;
+
+    const artboardCenterX = artboardWidth / 2;
+    const artboardCenterY = artboardHeight / 2;
+
+    const bounds = target.getBoundingRect();
+
+    const targetCenterX = bounds.left + bounds.width / 2;
+    const targetCenterY = bounds.top + bounds.height / 2;
+
+    const deltaX = artboardCenterX - targetCenterX;
+    const deltaY = artboardCenterY - targetCenterY;
+
+    const verticalThreshold = this.snapLocks.vertical
+      ? this.snapReleaseThreshold
+      : this.snapThreshold;
+
+    const horizontalThreshold = this.snapLocks.horizontal
+      ? this.snapReleaseThreshold
+      : this.snapThreshold;
+
+    const shouldSnapVertical = Math.abs(deltaX) <= verticalThreshold;
+    const shouldSnapHorizontal = Math.abs(deltaY) <= horizontalThreshold;
+
+    if (shouldSnapVertical) {
+      if (!this.snapLocks.vertical) {
+        target.set({
+          left: (target.left ?? 0) + deltaX,
+        });
+      }
+
+      this.snapLocks.vertical = true;
+      this.activeGuides.vertical = true;
+    } else {
+      this.snapLocks.vertical = false;
+      this.activeGuides.vertical = false;
+    }
+
+    if (shouldSnapHorizontal) {
+      if (!this.snapLocks.horizontal) {
+        target.set({
+          top: (target.top ?? 0) + deltaY,
+        });
+      }
+
+      this.snapLocks.horizontal = true;
+      this.activeGuides.horizontal = true;
+    } else {
+      this.snapLocks.horizontal = false;
+      this.activeGuides.horizontal = false;
+    }
+
+    target.setCoords();
+  }
+
   private setupEvents() {
     if (!this.canvas) return;
 
-    this.canvas.on("selection:created", () => this.updateZundandUI());
-    this.canvas.on("selection:updated", () => this.updateZundandUI());
-    this.canvas.on("selection:cleared", () => this.updateZundandUI());
+    this.canvas.on("selection:created", () => {
+      this.updateZundandUI();
+    });
 
+    this.canvas.on("selection:updated", () => {
+      this.updateZundandUI();
+    });
+
+    this.canvas.on("selection:cleared", () => {
+      this.activeGuides.vertical = false;
+      this.activeGuides.horizontal = false;
+
+      this.updateZundandUI();
+      this.canvas?.requestRenderAll();
+    });
+
+    // Keep transform properties updated while dragging/scaling/rotating
+    this.canvas.on("object:moving", (event) => {
+      const target = event.target;
+
+      if (!target || (target as any).isArtboard) return;
+
+      this.applyArtboardCenterSnapping(target);
+      this.updateZundandUI();
+      this.canvas?.requestRenderAll();
+    });
+
+    this.canvas.on("object:scaling", () => {
+      this.updateZundandUI();
+    });
+
+    this.canvas.on("object:rotating", () => {
+      this.updateZundandUI();
+    });
+
+    // Save only after the transform is finished
     this.canvas.on("object:modified", () => {
+      this.activeGuides.vertical = false;
+      this.activeGuides.horizontal = false;
+
+      this.updateZundandUI();
       this.saveToHistory();
       this.triggerAutosave();
       this.updateLayersList();
+      this.canvas?.requestRenderAll();
     });
 
     this.canvas.on("object:added", (e) => {
@@ -478,71 +601,118 @@ export class CanvasController {
     });
 
     // Infinite Canvas Grid Rendering
+    // Infinite canvas grid and alignment guides
     this.canvas.on("after:render", (opt) => {
-      if (!this.canvas || !this.showGrid || this.isExporting) return;
+      if (!this.canvas || this.isExporting) return;
 
       const ctx = opt.ctx;
       const vpt = this.canvas.viewportTransform;
+
       if (!vpt) return;
 
       const zoom = this.canvas.getZoom();
+      const canvasWidth = this.canvas.getWidth();
+      const canvasHeight = this.canvas.getHeight();
 
-      // Grid spacing: 50 pixels in canvas coordinates
-      const gridSpacing = 50;
-      const width = this.canvas.getWidth();
-      const height = this.canvas.getHeight();
+      // Draw workspace grid only when grid visibility is enabled
+      if (this.showGrid) {
+        const gridSpacing = 50;
 
-      ctx.save();
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.05)"; // very subtle white grid lines
-      ctx.lineWidth = 1;
+        const left = -vpt[4] / zoom;
+        const top = -vpt[5] / zoom;
+        const right = (canvasWidth - vpt[4]) / zoom;
+        const bottom = (canvasHeight - vpt[5]) / zoom;
 
-      // Calculate start and end points in viewport space
-      const left = -vpt[4] / zoom;
-      const top = -vpt[5] / zoom;
-      const right = (width - vpt[4]) / zoom;
-      const bottom = (height - vpt[5]) / zoom;
+        const startX = Math.floor(left / gridSpacing) * gridSpacing;
+        const startY = Math.floor(top / gridSpacing) * gridSpacing;
 
-      // Align to grid spacing
-      const startX = Math.floor(left / gridSpacing) * gridSpacing;
-      const startY = Math.floor(top / gridSpacing) * gridSpacing;
+        ctx.save();
 
-      ctx.beginPath();
-      for (let x = startX; x <= right; x += gridSpacing) {
-        const vx = x * zoom + vpt[4];
-        ctx.moveTo(vx, 0);
-        ctx.lineTo(vx, height);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+        ctx.lineWidth = 1;
+
+        ctx.beginPath();
+
+        for (let x = startX; x <= right; x += gridSpacing) {
+          const viewportX = x * zoom + vpt[4];
+
+          ctx.moveTo(viewportX, 0);
+          ctx.lineTo(viewportX, canvasHeight);
+        }
+
+        for (let y = startY; y <= bottom; y += gridSpacing) {
+          const viewportY = y * zoom + vpt[5];
+
+          ctx.moveTo(0, viewportY);
+          ctx.lineTo(canvasWidth, viewportY);
+        }
+
+        ctx.stroke();
+
+        // Major grid lines every 250 document pixels
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.09)";
+        ctx.beginPath();
+
+        for (
+          let x = Math.floor(left / (gridSpacing * 5)) * (gridSpacing * 5);
+          x <= right;
+          x += gridSpacing * 5
+        ) {
+          const viewportX = x * zoom + vpt[4];
+
+          ctx.moveTo(viewportX, 0);
+          ctx.lineTo(viewportX, canvasHeight);
+        }
+
+        for (
+          let y = Math.floor(top / (gridSpacing * 5)) * (gridSpacing * 5);
+          y <= bottom;
+          y += gridSpacing * 5
+        ) {
+          const viewportY = y * zoom + vpt[5];
+
+          ctx.moveTo(0, viewportY);
+          ctx.lineTo(canvasWidth, viewportY);
+        }
+
+        ctx.stroke();
+        ctx.restore();
       }
-      for (let y = startY; y <= bottom; y += gridSpacing) {
-        const vy = y * zoom + vpt[5];
-        ctx.moveTo(0, vy);
-        ctx.lineTo(width, vy);
-      }
-      ctx.stroke();
 
-      // Draw slightly darker major grid lines every 5 grid lines (250px)
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.09)";
-      ctx.beginPath();
-      for (
-        let x = Math.floor(left / (gridSpacing * 5)) * (gridSpacing * 5);
-        x <= right;
-        x += gridSpacing * 5
-      ) {
-        const vx = x * zoom + vpt[4];
-        ctx.moveTo(vx, 0);
-        ctx.lineTo(vx, height);
-      }
-      for (
-        let y = Math.floor(top / (gridSpacing * 5)) * (gridSpacing * 5);
-        y <= bottom;
-        y += gridSpacing * 5
-      ) {
-        const vy = y * zoom + vpt[5];
-        ctx.moveTo(0, vy);
-        ctx.lineTo(width, vy);
-      }
-      ctx.stroke();
+      // Draw temporary center-alignment guides
+      if (this.artboard) {
+        const artboardWidth = this.artboard.width ?? 0;
+        const artboardHeight = this.artboard.height ?? 0;
 
-      ctx.restore();
+        const documentCenterX = artboardWidth / 2;
+        const documentCenterY = artboardHeight / 2;
+
+        ctx.save();
+
+        ctx.strokeStyle = "#ec4899";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+
+        if (this.activeGuides.vertical) {
+          const viewportX = documentCenterX * zoom + vpt[4];
+
+          ctx.beginPath();
+          ctx.moveTo(viewportX, 0);
+          ctx.lineTo(viewportX, canvasHeight);
+          ctx.stroke();
+        }
+
+        if (this.activeGuides.horizontal) {
+          const viewportY = documentCenterY * zoom + vpt[5];
+
+          ctx.beginPath();
+          ctx.moveTo(0, viewportY);
+          ctx.lineTo(canvasWidth, viewportY);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
     });
   }
 
@@ -605,11 +775,11 @@ export class CanvasController {
         shadowOffsetX: shadowObj?.offsetX || 0,
         shadowOffsetY: shadowObj?.offsetY || 0,
         // Position, Size, and Rotation
-        left: Math.round(obj.left || 0),
-        top: Math.round(obj.top || 0),
-        width: Math.round((obj.width || 0) * (obj.scaleX || 1)),
-        height: Math.round((obj.height || 0) * (obj.scaleY || 1)),
-        angle: Math.round(obj.angle || 0),
+        left: Math.round(obj.left ?? 0),
+        top: Math.round(obj.top ?? 0),
+        width: Math.round((obj.width ?? 0) * (obj.scaleX ?? 1)),
+        height: Math.round((obj.height ?? 0) * (obj.scaleY ?? 1)),
+        angle: Math.round(obj.angle ?? 0),
         flipX: !!obj.flipX,
         flipY: !!obj.flipY,
         // Text specific
@@ -767,6 +937,8 @@ export class CanvasController {
     const rect = new Rect({
       left: 50,
       top: 50,
+      originX: "left",
+      originY: "top",
       width: 150,
       height: 100,
       fill: "#3b82f6",
@@ -793,6 +965,8 @@ export class CanvasController {
     const circle = new Circle({
       left: 60,
       top: 60,
+      originX: "left",
+      originY: "top",
       radius: 60,
       fill: "#10b981",
       stroke: "",
@@ -846,6 +1020,8 @@ export class CanvasController {
       {
         left,
         top,
+        originX: "left",
+        originY: "top",
         stroke: "#f59e0b",
         strokeWidth: 4,
         fill: "",
@@ -869,6 +1045,8 @@ export class CanvasController {
     const text = new IText("Double click to edit", {
       left: 50,
       top: 120,
+      originX: "left",
+      originY: "top",
       fontFamily: "Inter",
       fontSize: 28,
       fill: "#1e293b",
@@ -918,6 +1096,8 @@ export class CanvasController {
       const fabImage = new FabricImage(imgElement, {
         left: 40,
         top: 40,
+        originX: "left",
+        originY: "top",
         width,
         height,
         opacity: 1,

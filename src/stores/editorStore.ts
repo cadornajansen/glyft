@@ -87,7 +87,7 @@ export const useEditorStore = create<EditorUIState>((set) => ({
   currentProject: null,
   activeTool: "select",
   zoom: 1.0,
-  showGrid: true,
+  showGrid: false,
   gridSize: 20,
   selectedObjectCount: 0,
   activeProperties: null,

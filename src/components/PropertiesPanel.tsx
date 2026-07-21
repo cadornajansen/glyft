@@ -1,47 +1,56 @@
-import { useEffect, useState } from 'react';
-import { 
-  Type, 
-  Paintbrush, 
-  Layers, 
-  Lock, 
-  Unlock, 
-  Trash2, 
-  Copy, 
-  Bold, 
-  Italic, 
+import { useEffect, useState } from "react";
+import {
+  Type,
+  Paintbrush,
+  Layers,
+  Lock,
+  Unlock,
+  Trash2,
+  Copy,
+  Bold,
+  Italic,
   Underline,
   AlignLeft,
   AlignCenter,
   AlignRight,
   Sparkles,
-  Layers3
-} from 'lucide-react';
-import { useEditorStore, type ActiveProperties } from '../stores/editorStore';
+  Layers3,
+} from "lucide-react";
+import { useEditorStore, type ActiveProperties } from "../stores/editorStore";
 
 const FONTS = [
-  { name: 'Inter', value: 'Inter, sans-serif' },
-  { name: 'Space Grotesk', value: 'Space Grotesk, sans-serif' },
-  { name: 'JetBrains Mono', value: 'JetBrains Mono, monospace' },
-  { name: 'Playfair Display', value: 'Playfair Display, serif' },
-  { name: 'Plus Jakarta Sans', value: 'Plus Jakarta Sans, sans-serif' },
+  { name: "Inter", value: "Inter, sans-serif" },
+  { name: "Space Grotesk", value: "Space Grotesk, sans-serif" },
+  { name: "JetBrains Mono", value: "JetBrains Mono, monospace" },
+  { name: "Playfair Display", value: "Playfair Display, serif" },
+  { name: "Plus Jakarta Sans", value: "Plus Jakarta Sans, sans-serif" },
 ];
 
 const WEIGHTS = [
-  { name: 'Light', value: '300' },
-  { name: 'Regular', value: '400' },
-  { name: 'Medium', value: '500' },
-  { name: 'SemiBold', value: '600' },
-  { name: 'Bold', value: '700' },
-  { name: 'Black', value: '900' },
+  { name: "Light", value: "300" },
+  { name: "Regular", value: "400" },
+  { name: "Medium", value: "500" },
+  { name: "SemiBold", value: "600" },
+  { name: "Bold", value: "700" },
+  { name: "Black", value: "900" },
 ];
 
 const PRESETS_COLORS = [
-  '#ffffff', '#000000', '#f1f5f9', '#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'
+  "#ffffff",
+  "#000000",
+  "#f1f5f9",
+  "#3b82f6",
+  "#10b981",
+  "#ef4444",
+  "#f59e0b",
+  "#8b5cf6",
+  "#ec4899",
+  "#14b8a6",
 ];
 
 interface PropertiesPanelProps {
   onSetProperty: (key: keyof ActiveProperties, value: any) => void;
-  onSetArtboardProperty: (key: 'width' | 'height' | 'fill', value: any) => void;
+  onSetArtboardProperty: (key: "width" | "height" | "fill", value: any) => void;
   onDeleteSelected: () => void;
   onDuplicateSelected: () => void;
   onGroupSelected: () => void;
@@ -60,7 +69,8 @@ export function PropertiesPanel({
   onLockSelected,
   onUnlockSelected,
 }: PropertiesPanelProps) {
-  const { activeProperties, selectedObjectCount, currentProject } = useEditorStore();
+  const { activeProperties, selectedObjectCount, currentProject } =
+    useEditorStore();
 
   // Temporary local states to allow smooth input scrubbing/typing
   const [localWidth, setLocalWidth] = useState(currentProject?.width || 1200);
@@ -76,23 +86,25 @@ export function PropertiesPanel({
   const handleArtboardWidthChange = (val: string) => {
     const num = parseInt(val) || 0;
     setLocalWidth(num);
-    onSetArtboardProperty('width', num);
+    onSetArtboardProperty("width", num);
   };
 
   const handleArtboardHeightChange = (val: string) => {
     const num = parseInt(val) || 0;
     setLocalHeight(num);
-    onSetArtboardProperty('height', num);
+    onSetArtboardProperty("height", num);
   };
 
   return (
-    <div 
+    <div
       id="properties-sidebar"
       className="flex flex-col h-full bg-[#0a0a0a] w-full overflow-y-auto scrollbar-none"
     >
       <div className="flex items-center gap-2 border-b border-[#222] px-4 py-3 bg-[#0a0a0a]">
         <Paintbrush size={14} className="text-[#707070]" />
-        <span className="text-[10px] font-bold uppercase tracking-widest text-[#a1a1a1]">Properties</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[#a1a1a1]">
+          Properties
+        </span>
       </div>
 
       <div className="flex-1 p-4 space-y-6">
@@ -101,13 +113,19 @@ export function PropertiesPanel({
           <div className="space-y-6">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-[#a1a1a1]">Artboard Sizing</span>
-                <span className="text-[10px] text-[#555] font-mono">No Selection</span>
+                <span className="text-xs font-bold text-[#a1a1a1]">
+                  Artboard Sizing
+                </span>
+                <span className="text-[10px] text-[#555] font-mono">
+                  No Selection
+                </span>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Width (px)</label>
+                  <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                    Width (px)
+                  </label>
                   <input
                     id="artboard-width"
                     type="number"
@@ -117,7 +135,9 @@ export function PropertiesPanel({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Height (px)</label>
+                  <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                    Height (px)
+                  </label>
                   <input
                     id="artboard-height"
                     type="number"
@@ -131,19 +151,25 @@ export function PropertiesPanel({
 
             {/* Document Background Fill Color */}
             <div className="space-y-3">
-              <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Artboard Color</label>
+              <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                Artboard Color
+              </label>
               <div className="flex gap-2">
                 <input
                   id="artboard-bg-picker"
                   type="color"
-                  value={currentProject?.canvasData ? '#ffffff' : '#ffffff'} // default mock fallback
-                  onChange={(e) => onSetArtboardProperty('fill', e.target.value)}
+                  value={currentProject?.canvasData ? "#ffffff" : "#ffffff"} // default mock fallback
+                  onChange={(e) =>
+                    onSetArtboardProperty("fill", e.target.value)
+                  }
                   className="h-8 w-8 cursor-pointer rounded border border-[#333] bg-transparent p-0"
                 />
                 <input
                   type="text"
                   placeholder="#ffffff"
-                  onChange={(e) => onSetArtboardProperty('fill', e.target.value)}
+                  onChange={(e) =>
+                    onSetArtboardProperty("fill", e.target.value)
+                  }
                   className="flex-1 bg-[#1a1a1a] border border-[#333] text-xs rounded px-2.5 py-1.5 focus:outline-none focus:border-white/20 font-mono text-white"
                 />
               </div>
@@ -151,7 +177,7 @@ export function PropertiesPanel({
                 {PRESETS_COLORS.map((c) => (
                   <button
                     key={c}
-                    onClick={() => onSetArtboardProperty('fill', c)}
+                    onClick={() => onSetArtboardProperty("fill", c)}
                     className="h-5 rounded border border-[#222] transition-transform hover:scale-105 cursor-pointer"
                     style={{ backgroundColor: c }}
                   />
@@ -163,14 +189,14 @@ export function PropertiesPanel({
             <div className="rounded border border-[#222] bg-[#1a1a1a]/10 p-4 text-center mt-6">
               <Sparkles className="mx-auto text-[#555] mb-2" size={20} />
               <p className="text-[11px] text-[#707070] leading-relaxed">
-                Select an object on the canvas to configure its color fills, borders, typography styles, shadows, and reordering.
+                Select an object on the canvas to configure its color fills,
+                borders, typography styles, shadows, and reordering.
               </p>
             </div>
           </div>
         ) : (
           /* ACTIVE SELECTION PROPERTIES */
           <div className="space-y-6">
-            
             {/* Quick Actions Bar */}
             <div className="flex items-center justify-between border-b border-[#222] pb-4 gap-1.5">
               <button
@@ -191,7 +217,7 @@ export function PropertiesPanel({
                   <Layers size={11} />
                   Group
                 </button>
-              ) : activeProperties?.type === 'group' ? (
+              ) : activeProperties?.type === "group" ? (
                 <button
                   id="prop-btn-ungroup"
                   onClick={onUngroupSelected}
@@ -219,25 +245,166 @@ export function PropertiesPanel({
               </button>
             </div>
 
+            {/* TRANSFORM */}
+            {selectedObjectCount === 1 && activeProperties && (
+              <div className="space-y-4 border-b border-[#222] pb-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-[#a1a1a1]">
+                    Transform
+                  </span>
+
+                  <span className="font-mono text-[9px] text-[#555]">
+                    Document coordinates
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor="prop-position-x"
+                      className="text-[9px] font-bold uppercase tracking-widest text-[#555]"
+                    >
+                      X
+                    </label>
+
+                    <input
+                      id="prop-position-x"
+                      type="number"
+                      step="1"
+                      value={activeProperties.left ?? 0}
+                      onChange={(event) =>
+                        onSetProperty("left", Number(event.target.value))
+                      }
+                      className="w-full rounded border border-[#333] bg-[#1a1a1a] px-2.5 py-1.5 font-mono text-xs text-white focus:border-white/20 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor="prop-position-y"
+                      className="text-[9px] font-bold uppercase tracking-widest text-[#555]"
+                    >
+                      Y
+                    </label>
+
+                    <input
+                      id="prop-position-y"
+                      type="number"
+                      step="1"
+                      value={activeProperties.top ?? 0}
+                      onChange={(event) =>
+                        onSetProperty("top", Number(event.target.value))
+                      }
+                      className="w-full rounded border border-[#333] bg-[#1a1a1a] px-2.5 py-1.5 font-mono text-xs text-white focus:border-white/20 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor="prop-width"
+                      className="text-[9px] font-bold uppercase tracking-widest text-[#555]"
+                    >
+                      Width
+                    </label>
+
+                    <input
+                      id="prop-width"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={activeProperties.width ?? 1}
+                      onChange={(event) =>
+                        onSetProperty(
+                          "width",
+                          Math.max(1, Number(event.target.value)),
+                        )
+                      }
+                      className="w-full rounded border border-[#333] bg-[#1a1a1a] px-2.5 py-1.5 font-mono text-xs text-white focus:border-white/20 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor="prop-height"
+                      className="text-[9px] font-bold uppercase tracking-widest text-[#555]"
+                    >
+                      Height
+                    </label>
+
+                    <input
+                      id="prop-height"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={activeProperties.height ?? 1}
+                      onChange={(event) =>
+                        onSetProperty(
+                          "height",
+                          Math.max(1, Number(event.target.value)),
+                        )
+                      }
+                      className="w-full rounded border border-[#333] bg-[#1a1a1a] px-2.5 py-1.5 font-mono text-xs text-white focus:border-white/20 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="prop-angle"
+                    className="text-[9px] font-bold uppercase tracking-widest text-[#555]"
+                  >
+                    Rotation
+                  </label>
+
+                  <div className="relative">
+                    <input
+                      id="prop-angle"
+                      type="number"
+                      step="1"
+                      value={activeProperties.angle ?? 0}
+                      onChange={(event) =>
+                        onSetProperty("angle", Number(event.target.value))
+                      }
+                      className="w-full rounded border border-[#333] bg-[#1a1a1a] px-2.5 py-1.5 pr-8 font-mono text-xs text-white focus:border-white/20 focus:outline-none"
+                    />
+
+                    <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[#555]">
+                      °
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Typography Controls (Only if selected is Text) */}
-            {activeProperties?.type === 'itext' && (
+            {activeProperties?.type === "itext" && (
               <div className="space-y-4 border-b border-[#222] pb-5">
                 <div className="flex items-center gap-1.5">
                   <Type size={12} className="text-[#707070]" />
-                  <span className="text-[9px] font-bold text-[#a1a1a1] tracking-widest uppercase">Typography</span>
+                  <span className="text-[9px] font-bold text-[#a1a1a1] tracking-widest uppercase">
+                    Typography
+                  </span>
                 </div>
 
                 {/* Font Family Selection */}
                 <div className="space-y-1.5">
-                  <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Font Family</label>
+                  <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                    Font Family
+                  </label>
                   <select
                     id="prop-font-family"
                     value={activeProperties.fontFamily}
-                    onChange={(e) => onSetProperty('fontFamily', e.target.value)}
+                    onChange={(e) =>
+                      onSetProperty("fontFamily", e.target.value)
+                    }
                     className="w-full bg-[#1a1a1a] border border-[#333] text-xs rounded px-2.5 py-1.5 focus:outline-none focus:border-white/20 text-white"
                   >
                     {FONTS.map((font) => (
-                      <option key={font.name} value={font.value}>{font.name}</option>
+                      <option key={font.name} value={font.value}>
+                        {font.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -245,26 +412,39 @@ export function PropertiesPanel({
                 <div className="grid grid-cols-2 gap-3">
                   {/* Font Size */}
                   <div className="space-y-1.5">
-                    <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Size (px)</label>
+                    <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                      Size (px)
+                    </label>
                     <input
                       id="prop-font-size"
                       type="number"
                       value={activeProperties.fontSize || 24}
-                      onChange={(e) => onSetProperty('fontSize', parseInt(e.target.value) || 12)}
+                      onChange={(e) =>
+                        onSetProperty(
+                          "fontSize",
+                          parseInt(e.target.value) || 12,
+                        )
+                      }
                       className="w-full bg-[#1a1a1a] border border-[#333] text-xs rounded px-2.5 py-1.5 focus:outline-none focus:border-white/20 font-mono text-white"
                     />
                   </div>
                   {/* Font Weight */}
                   <div className="space-y-1.5">
-                    <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Weight</label>
+                    <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                      Weight
+                    </label>
                     <select
                       id="prop-font-weight"
                       value={activeProperties.fontWeight}
-                      onChange={(e) => onSetProperty('fontWeight', e.target.value)}
+                      onChange={(e) =>
+                        onSetProperty("fontWeight", e.target.value)
+                      }
                       className="w-full bg-[#1a1a1a] border border-[#333] text-xs rounded px-2.5 py-1.5 focus:outline-none focus:border-white/20 text-white"
                     >
                       {WEIGHTS.map((w) => (
-                        <option key={w.name} value={w.value}>{w.name}</option>
+                        <option key={w.name} value={w.value}>
+                          {w.name}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -273,24 +453,38 @@ export function PropertiesPanel({
                 <div className="grid grid-cols-2 gap-3">
                   {/* Letter Spacing */}
                   <div className="space-y-1.5">
-                    <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Letter Spacing</label>
+                    <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                      Letter Spacing
+                    </label>
                     <input
                       id="prop-letter-spacing"
                       type="number"
                       value={activeProperties.charSpacing || 0}
-                      onChange={(e) => onSetProperty('charSpacing', parseInt(e.target.value) || 0)}
+                      onChange={(e) =>
+                        onSetProperty(
+                          "charSpacing",
+                          parseInt(e.target.value) || 0,
+                        )
+                      }
                       className="w-full bg-[#1a1a1a] border border-[#333] text-xs rounded px-2.5 py-1.5 focus:outline-none focus:border-white/20 font-mono text-white"
                     />
                   </div>
                   {/* Line Height */}
                   <div className="space-y-1.5">
-                    <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Line Height</label>
+                    <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                      Line Height
+                    </label>
                     <input
                       id="prop-line-height"
                       type="number"
                       step="0.1"
                       value={activeProperties.lineHeight || 1.15}
-                      onChange={(e) => onSetProperty('lineHeight', parseFloat(e.target.value) || 1.15)}
+                      onChange={(e) =>
+                        onSetProperty(
+                          "lineHeight",
+                          parseFloat(e.target.value) || 1.15,
+                        )
+                      }
                       className="w-full bg-[#1a1a1a] border border-[#333] text-xs rounded px-2.5 py-1.5 focus:outline-none focus:border-white/20 font-mono text-white"
                     />
                   </div>
@@ -298,44 +492,65 @@ export function PropertiesPanel({
 
                 {/* Typography formatting (Align, Underline, Style) */}
                 <div className="space-y-1.5">
-                  <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Formatting</label>
+                  <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                    Formatting
+                  </label>
                   <div className="flex gap-1 border border-[#333] bg-[#1a1a1a]/40 p-1 rounded">
                     <button
-                      onClick={() => onSetProperty('textAlign', 'left')}
+                      onClick={() => onSetProperty("textAlign", "left")}
                       className={`flex-1 py-1 rounded flex items-center justify-center text-[#707070] hover:bg-[#222] hover:text-white ${
-                        activeProperties.textAlign === 'left' ? 'bg-[#222] text-white font-bold' : ''
+                        activeProperties.textAlign === "left"
+                          ? "bg-[#222] text-white font-bold"
+                          : ""
                       }`}
                     >
                       <AlignLeft size={13} />
                     </button>
                     <button
-                      onClick={() => onSetProperty('textAlign', 'center')}
+                      onClick={() => onSetProperty("textAlign", "center")}
                       className={`flex-1 py-1 rounded flex items-center justify-center text-[#707070] hover:bg-[#222] hover:text-white ${
-                        activeProperties.textAlign === 'center' ? 'bg-[#222] text-white font-bold' : ''
+                        activeProperties.textAlign === "center"
+                          ? "bg-[#222] text-white font-bold"
+                          : ""
                       }`}
                     >
                       <AlignCenter size={13} />
                     </button>
                     <button
-                      onClick={() => onSetProperty('textAlign', 'right')}
+                      onClick={() => onSetProperty("textAlign", "right")}
                       className={`flex-1 py-1 rounded flex items-center justify-center text-[#707070] hover:bg-[#222] hover:text-white ${
-                        activeProperties.textAlign === 'right' ? 'bg-[#222] text-white font-bold' : ''
+                        activeProperties.textAlign === "right"
+                          ? "bg-[#222] text-white font-bold"
+                          : ""
                       }`}
                     >
                       <AlignRight size={13} />
                     </button>
                     <button
-                      onClick={() => onSetProperty('fontStyle', activeProperties.fontStyle === 'italic' ? 'normal' : 'italic')}
+                      onClick={() =>
+                        onSetProperty(
+                          "fontStyle",
+                          activeProperties.fontStyle === "italic"
+                            ? "normal"
+                            : "italic",
+                        )
+                      }
                       className={`flex-1 py-1 rounded flex items-center justify-center text-[#707070] hover:bg-[#222] hover:text-white ${
-                        activeProperties.fontStyle === 'italic' ? 'bg-[#222] text-white font-bold' : ''
+                        activeProperties.fontStyle === "italic"
+                          ? "bg-[#222] text-white font-bold"
+                          : ""
                       }`}
                     >
                       <Italic size={13} />
                     </button>
                     <button
-                      onClick={() => onSetProperty('underline', !activeProperties.underline)}
+                      onClick={() =>
+                        onSetProperty("underline", !activeProperties.underline)
+                      }
                       className={`flex-1 py-1 rounded flex items-center justify-center text-[#707070] hover:bg-[#222] hover:text-white ${
-                        activeProperties.underline ? 'bg-[#222] text-white font-bold' : ''
+                        activeProperties.underline
+                          ? "bg-[#222] text-white font-bold"
+                          : ""
                       }`}
                     >
                       <Underline size={13} />
@@ -346,55 +561,70 @@ export function PropertiesPanel({
             )}
 
             {/* COLOR AND FILL */}
-            {activeProperties?.type !== 'line' && activeProperties?.type !== 'path' && (
-              <div className="space-y-3">
-                <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Fill Color</label>
-                <div className="flex gap-2">
-                  <input
-                    id="prop-fill-picker"
-                    type="color"
-                    value={activeProperties?.fill && activeProperties.fill.startsWith('#') ? activeProperties.fill : '#3b82f6'}
-                    onChange={(e) => onSetProperty('fill', e.target.value)}
-                    className="h-8 w-8 cursor-pointer rounded border border-[#333] bg-transparent p-0"
-                  />
-                  <input
-                    id="prop-fill-text"
-                    type="text"
-                    value={activeProperties?.fill || ''}
-                    onChange={(e) => onSetProperty('fill', e.target.value)}
-                    className="flex-1 bg-[#1a1a1a] border border-[#333] text-xs rounded px-2.5 py-1.5 focus:outline-none focus:border-white/20 font-mono text-white"
-                  />
-                </div>
-                <div className="grid grid-cols-5 gap-1 pt-1">
-                  {PRESETS_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => onSetProperty('fill', c)}
-                      className="h-5 rounded border border-[#222] transition-transform hover:scale-105 cursor-pointer"
-                      style={{ backgroundColor: c }}
+            {activeProperties?.type !== "line" &&
+              activeProperties?.type !== "path" && (
+                <div className="space-y-3">
+                  <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                    Fill Color
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="prop-fill-picker"
+                      type="color"
+                      value={
+                        activeProperties?.fill &&
+                        activeProperties.fill.startsWith("#")
+                          ? activeProperties.fill
+                          : "#3b82f6"
+                      }
+                      onChange={(e) => onSetProperty("fill", e.target.value)}
+                      className="h-8 w-8 cursor-pointer rounded border border-[#333] bg-transparent p-0"
                     />
-                  ))}
+                    <input
+                      id="prop-fill-text"
+                      type="text"
+                      value={activeProperties?.fill || ""}
+                      onChange={(e) => onSetProperty("fill", e.target.value)}
+                      className="flex-1 bg-[#1a1a1a] border border-[#333] text-xs rounded px-2.5 py-1.5 focus:outline-none focus:border-white/20 font-mono text-white"
+                    />
+                  </div>
+                  <div className="grid grid-cols-5 gap-1 pt-1">
+                    {PRESETS_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => onSetProperty("fill", c)}
+                        className="h-5 rounded border border-[#222] transition-transform hover:scale-105 cursor-pointer"
+                        style={{ backgroundColor: c }}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {/* BORDER AND STROKE */}
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Stroke Color</label>
+                <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                  Stroke Color
+                </label>
                 <div className="flex gap-2">
                   <input
                     id="prop-stroke-picker"
                     type="color"
-                    value={activeProperties?.stroke && activeProperties.stroke.startsWith('#') ? activeProperties.stroke : '#000000'}
-                    onChange={(e) => onSetProperty('stroke', e.target.value)}
+                    value={
+                      activeProperties?.stroke &&
+                      activeProperties.stroke.startsWith("#")
+                        ? activeProperties.stroke
+                        : "#000000"
+                    }
+                    onChange={(e) => onSetProperty("stroke", e.target.value)}
                     className="h-8 w-8 cursor-pointer rounded border border-[#333] bg-transparent p-0"
                   />
                   <input
                     id="prop-stroke-text"
                     type="text"
-                    value={activeProperties?.stroke || ''}
-                    onChange={(e) => onSetProperty('stroke', e.target.value)}
+                    value={activeProperties?.stroke || ""}
+                    onChange={(e) => onSetProperty("stroke", e.target.value)}
                     placeholder="None"
                     className="flex-1 bg-[#1a1a1a] border border-[#333] text-xs rounded px-2.5 py-1.5 focus:outline-none focus:border-white/20 font-mono text-white"
                   />
@@ -404,21 +634,30 @@ export function PropertiesPanel({
               <div className="grid grid-cols-2 gap-3">
                 {/* Stroke Width */}
                 <div className="space-y-1.5">
-                  <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Stroke Width</label>
+                  <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                    Stroke Width
+                  </label>
                   <input
                     id="prop-stroke-width"
                     type="number"
                     min="0"
                     max="50"
                     value={activeProperties?.strokeWidth || 0}
-                    onChange={(e) => onSetProperty('strokeWidth', parseInt(e.target.value) || 0)}
+                    onChange={(e) =>
+                      onSetProperty(
+                        "strokeWidth",
+                        parseInt(e.target.value) || 0,
+                      )
+                    }
                     className="w-full bg-[#1a1a1a] border border-[#333] text-xs rounded px-2.5 py-1.5 focus:outline-none focus:border-white/20 font-mono text-white"
                   />
                 </div>
                 {/* Corner Radius (Only if selected is Rectangle) */}
-                {activeProperties?.type === 'rect' && (
+                {activeProperties?.type === "rect" && (
                   <div className="space-y-1.5">
-                    <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Corner Radius</label>
+                    <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                      Corner Radius
+                    </label>
                     <input
                       id="prop-corner-radius"
                       type="number"
@@ -427,8 +666,8 @@ export function PropertiesPanel({
                       value={activeProperties.rx || 0}
                       onChange={(e) => {
                         const val = parseInt(e.target.value) || 0;
-                        onSetProperty('rx', val);
-                        onSetProperty('ry', val);
+                        onSetProperty("rx", val);
+                        onSetProperty("ry", val);
                       }}
                       className="w-full bg-[#1a1a1a] border border-[#333] text-xs rounded px-2.5 py-1.5 focus:outline-none focus:border-white/20 font-mono text-white"
                     />
@@ -440,7 +679,9 @@ export function PropertiesPanel({
             {/* OPACITY CONTROLLER */}
             <div className="space-y-2 border-t border-[#222] pt-4">
               <div className="flex items-center justify-between">
-                <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Opacity</label>
+                <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                  Opacity
+                </label>
                 <span className="text-[10px] text-[#a1a1a1] font-mono">
                   {Math.round((activeProperties?.opacity ?? 1) * 100)}%
                 </span>
@@ -452,69 +693,102 @@ export function PropertiesPanel({
                 max="1"
                 step="0.05"
                 value={activeProperties?.opacity ?? 1}
-                onChange={(e) => onSetProperty('opacity', parseFloat(e.target.value))}
+                onChange={(e) =>
+                  onSetProperty("opacity", parseFloat(e.target.value))
+                }
                 className="w-full accent-white h-1 bg-[#1a1a1a] rounded cursor-pointer"
               />
             </div>
 
             {/* SHADOW EFFECTS */}
             <div className="space-y-4 border-t border-[#222] pt-4">
-              <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Shadow Effects</label>
+              <label className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                Shadow Effects
+              </label>
               <div className="space-y-2.5">
                 <div className="flex gap-2">
                   <input
                     id="prop-shadow-color"
                     type="color"
-                    value={activeProperties?.shadowColor && activeProperties.shadowColor.startsWith('#') ? activeProperties.shadowColor : '#000000'}
-                    onChange={(e) => onSetProperty('shadowColor', e.target.value)}
+                    value={
+                      activeProperties?.shadowColor &&
+                      activeProperties.shadowColor.startsWith("#")
+                        ? activeProperties.shadowColor
+                        : "#000000"
+                    }
+                    onChange={(e) =>
+                      onSetProperty("shadowColor", e.target.value)
+                    }
                     className="h-8 w-8 cursor-pointer rounded border border-[#333] bg-transparent p-0"
                   />
                   <input
                     id="prop-shadow-color-text"
                     type="text"
-                    value={activeProperties?.shadowColor || ''}
+                    value={activeProperties?.shadowColor || ""}
                     placeholder="Shadow color"
-                    onChange={(e) => onSetProperty('shadowColor', e.target.value)}
+                    onChange={(e) =>
+                      onSetProperty("shadowColor", e.target.value)
+                    }
                     className="flex-1 bg-[#1a1a1a] border border-[#333] text-xs rounded px-2.5 py-1.5 focus:outline-none focus:border-white/20 font-mono text-white"
                   />
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
                   <div className="space-y-1">
-                    <span className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Blur</span>
+                    <span className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                      Blur
+                    </span>
                     <input
                       id="prop-shadow-blur"
                       type="number"
                       min="0"
                       value={activeProperties?.shadowBlur || 0}
-                      onChange={(e) => onSetProperty('shadowBlur', parseInt(e.target.value) || 0)}
+                      onChange={(e) =>
+                        onSetProperty(
+                          "shadowBlur",
+                          parseInt(e.target.value) || 0,
+                        )
+                      }
                       className="w-full bg-[#1a1a1a] border border-[#333] text-[11px] rounded px-2 py-1 focus:outline-none focus:border-white/20 font-mono text-white"
                     />
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Offset X</span>
+                    <span className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                      Offset X
+                    </span>
                     <input
                       id="prop-shadow-offset-x"
                       type="number"
                       value={activeProperties?.shadowOffsetX || 0}
-                      onChange={(e) => onSetProperty('shadowOffsetX', parseInt(e.target.value) || 0)}
+                      onChange={(e) =>
+                        onSetProperty(
+                          "shadowOffsetX",
+                          parseInt(e.target.value) || 0,
+                        )
+                      }
                       className="w-full bg-[#1a1a1a] border border-[#333] text-[11px] rounded px-2 py-1 focus:outline-none focus:border-white/20 font-mono text-white"
                     />
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[9px] text-[#555] font-bold uppercase tracking-widest">Offset Y</span>
+                    <span className="text-[9px] text-[#555] font-bold uppercase tracking-widest">
+                      Offset Y
+                    </span>
                     <input
                       id="prop-shadow-offset-y"
                       type="number"
                       value={activeProperties?.shadowOffsetY || 0}
-                      onChange={(e) => onSetProperty('shadowOffsetY', parseInt(e.target.value) || 0)}
+                      onChange={(e) =>
+                        onSetProperty(
+                          "shadowOffsetY",
+                          parseInt(e.target.value) || 0,
+                        )
+                      }
                       className="w-full bg-[#1a1a1a] border border-[#333] text-[11px] rounded px-2 py-1 focus:outline-none focus:border-white/20 font-mono text-white"
                     />
                   </div>
                 </div>
               </div>
             </div>
-
           </div>
         )}
       </div>
