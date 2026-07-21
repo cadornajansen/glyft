@@ -168,6 +168,12 @@ export default function App() {
             return;
           }
 
+          // Do not write canvas state over a corrupted document the user hasn't resolved yet
+          if (storeStateBefore.canvasLoadError) {
+            setIsSaving(false);
+            return;
+          }
+
           const updatedProj = await saveProjectCanvasState(
             projectId,
             canvasData,
@@ -604,20 +610,26 @@ export default function App() {
   };
 
   // 7. Document recovery handlers
-  const handleRecoveryKeepBlank = () => {
+  const handleRecoveryReplaceWithBlank = async () => {
+    if (!canvasControllerRef.current) return;
+    // Clear the error first so the autosave guard (canvasLoadError check) lets this write through,
+    // then persist the blank canvas state.
     setCanvasLoadError(null);
-    // Trigger autosave with an empty canvas so the blank state is persisted
-    if (canvasControllerRef.current) {
-      canvasControllerRef.current.saveToHistory();
-      void canvasControllerRef.current.triggerAutosave();
-    }
+    canvasControllerRef.current.saveToHistory();
+    await canvasControllerRef.current.triggerAutosave();
   };
 
   const handleRecoveryDelete = async () => {
-    setCanvasLoadError(null);
     if (currentProjectId) {
       await handleDeleteProject(currentProjectId);
     }
+    // Clear error after deletion so dialog only closes on success
+    setCanvasLoadError(null);
+  };
+
+  const handleRecoveryGoBack = () => {
+    setCanvasLoadError(null);
+    handleResetToProjects();
   };
 
   const appShell = (
@@ -888,9 +900,9 @@ export default function App() {
         <DocumentRecoveryDialog
           projectName={currentProject.name}
           errorMessage={canvasLoadError}
-          onKeepBlank={handleRecoveryKeepBlank}
+          onReplaceWithBlank={handleRecoveryReplaceWithBlank}
           onDeleteProject={handleRecoveryDelete}
-          onDismiss={() => setCanvasLoadError(null)}
+          onGoBack={handleRecoveryGoBack}
         />
       )}
     </div>

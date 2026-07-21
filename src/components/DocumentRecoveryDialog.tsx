@@ -1,12 +1,12 @@
 import React from "react";
-import { AlertTriangle, Trash2, X, RefreshCw } from "lucide-react";
+import { AlertTriangle, Trash2, RefreshCw } from "lucide-react";
 
 interface DocumentRecoveryDialogProps {
   projectName: string;
   errorMessage: string;
-  onKeepBlank: () => void;
+  onReplaceWithBlank: () => void;
   onDeleteProject: () => void;
-  onDismiss: () => void;
+  onGoBack: () => void;
 }
 
 /**
@@ -16,9 +16,9 @@ interface DocumentRecoveryDialogProps {
 export function DocumentRecoveryDialog({
   projectName,
   errorMessage,
-  onKeepBlank,
+  onReplaceWithBlank,
   onDeleteProject,
-  onDismiss,
+  onGoBack,
 }: DocumentRecoveryDialogProps) {
   return (
     <div
@@ -44,14 +44,6 @@ export function DocumentRecoveryDialog({
               {projectName}
             </p>
           </div>
-          <button
-            id="recovery-dismiss-btn"
-            onClick={onDismiss}
-            title="Dismiss"
-            className="shrink-0 rounded-md p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
 
         {/* Body */}
@@ -76,6 +68,13 @@ export function DocumentRecoveryDialog({
         {/* Footer */}
         <div className="flex flex-col-reverse gap-2 p-5 pt-0 sm:flex-row sm:justify-end">
           <button
+            id="recovery-goback-btn"
+            onClick={onGoBack}
+            className="flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+          >
+            Go back to projects
+          </button>
+          <button
             id="recovery-delete-btn"
             onClick={onDeleteProject}
             className="flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
@@ -85,11 +84,11 @@ export function DocumentRecoveryDialog({
           </button>
           <button
             id="recovery-blank-btn"
-            onClick={onKeepBlank}
+            onClick={onReplaceWithBlank}
             className="flex items-center justify-center gap-1.5 rounded-md bg-zinc-700 px-4 py-2 text-sm font-medium text-zinc-100 hover:bg-zinc-600 transition-colors"
           >
             <RefreshCw className="h-4 w-4" />
-            Keep blank canvas
+            Replace with blank canvas
           </button>
         </div>
       </div>
